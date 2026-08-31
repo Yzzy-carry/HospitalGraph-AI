@@ -1,0 +1,17 @@
+# 联邦医院知识图谱AI — 运行依赖
+# 环境：Python 3.11+（本项目在 3.11.9 / 3.13 上均验证通过）
+# 安装：pip install -r requirements.txt
+
+Flask>=3.0,<4.0
+PyMySQL>=1.1
+requests>=2.31
+numpy>=1.24
+Pillow>=10.0
+qrcode>=7.4          # 手机访问二维码（可选）
+waitress>=3.0        # 生产级 WSGI 服务器（可选，替换开发服务器）
+
+# 说明：
+# - 数据库为 MySQL 8.0（需自行安装），建库脚本见 db/init_hospital_graph.sql
+# - 云端视觉识别 / 文本问答调用阿里云百炼（DashScope），需联网
+# - 环境变量：BAILIAN_KEY（百炼 API Key）、BAILIAN_VL_MODEL（视觉模型，默认 qwen3-vl-plus）
+#             HG_HOST / HG_PORT / HG_DEBUG（服务绑定与调试开关）

@@ -1,0 +1,36 @@
+# ── 密钥与本地配置（不要提交）──
+.env
+.env.*
+config.local.*
+*.key
+secrets.*
+
+# ── 运行期文件（不提交，但保留数据文件示例）──
+__pycache__/
+*.py[cod]
+*.pyc
+logs/*.log
+logs/phone_qr.png
+*.tmp
+
+# 本地会话/缓存
+.sessions/
+_V48_VL_CACHE*
+
+# ── 编辑器与系统 ──
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
+
+# ── 打包产物 ──
+dist/
+build/
+*.zip
+
+# 说明：以下内容**需要提交**（复现与演示必需）
+#   data/*.json          演示数据（合成，非真实患者数据）
+#   data/photos/**       演示照片
+#   static/cases/**      示范病例图
+#   db/*.sql             建库脚本
+#   sample_*.jpg         拍照分析示例图
