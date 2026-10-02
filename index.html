@@ -366,6 +366,17 @@ body.mx-open{overflow:hidden}
 .mx-flags-card h5{font-size:.72rem;color:#ffb4b4;letter-spacing:.08em;margin-bottom:6px}
 .mx-flags{padding-left:16px}
 .mx-flags li{color:#ffc9c9;font-size:.79rem;line-height:1.7}
+/* ---------- v4.4 联邦融合（双视图 · 模型徽章 · 训练台） ---------- */
+.mx-scope{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 12px}
+.mx-scope .mx-mut{flex:none}
+.mx-sbtn{background:rgba(37,99,235,.12);border:1px solid rgba(94,162,255,.3);color:var(--tx);padding:5px 13px;border-radius:999px;cursor:pointer;font-size:.78rem;font-family:inherit;transition:all .15s}
+.mx-sbtn:hover{background:rgba(37,99,235,.28)}
+.mx-sbtn.on{background:var(--blue);border-color:var(--blue2);box-shadow:0 0 12px rgba(94,162,255,.45)}
+.mx-badge.mx-model{color:#9cc8ff;border-color:rgba(94,162,255,.5);background:rgba(37,99,235,.16)}
+.mx-badge.mx-fednew{color:#7fd8f0;border-color:rgba(127,216,240,.5);background:rgba(127,216,240,.12)}
+.mx-based{margin-left:8px;font-style:normal;font-size:.68rem;color:var(--txm);font-weight:500}
+.mx-flstat{background:rgba(8,18,36,.6);border:1px solid rgba(94,162,255,.14);border-radius:10px;padding:10px 14px;margin:10px 0;font-size:.78rem;color:var(--txm);line-height:1.8}
+.mx-flstat b{color:var(--blue2)}
 </style>
 </head>
 <body>
@@ -1188,14 +1199,25 @@ function mxOpenModule(name){
   else if(name === 'photo'){ mxOpenPhoto(); }
 }
 
-/* —— ① AI 辅助诊断（/api/symptoms + /api/diagnose） —— */
+/* —— ① AI 辅助诊断（/api/symptoms + /api/diagnose · 接入联邦全局模型） —— */
 var mxPicked = [];
+var mxModelSel = 'global';
 function mxOpenDiag(){
   mxPicked = [];
-  mxShow('AI 辅助诊断', '身份：' + HGX.name + ' · 推理范围：本院视图');
-  hgxCache('symptoms', '/api/symptoms').then(function(list){
+  mxShow('AI 辅助诊断', '身份：' + HGX.name);
+  Promise.all([
+    hgxCache('symptoms', '/api/symptoms'),
+    hgxGet('/api/fl/status').catch(function(){ return null; })
+  ]).then(function(out){
+    var list = out[0], st = out[1] || {};
+    if(st && st.trained){ HGX_CACHE.flstatus = st; }
+    mxSub.textContent = '身份：' + HGX.name + ' · 推理模型：' + (st.trained ? ('联邦全局 v' + st.version) : '基础版（未训练）');
     var h = [];
-    h.push('<p class="mx-note">点选症状（可多选）→ 点击「开始推理」，查看基于知识库的鉴别诊断排名。本工具仅供教学演示，不构成医疗建议。</p>');
+    h.push('<p class="mx-note">点选症状（可多选）→ 点击「开始推理」，查看鉴别诊断排名。推理模型由联邦训练提供（六院联合），可切换「基础版」对比。本工具仅供教学演示，不构成医疗建议。</p>');
+    h.push('<div class="mx-scope"><span class="mx-mut">推理模型：</span>' +
+      '<button type="button" class="mx-sbtn' + (mxModelSel === 'global' ? ' on' : '') + '" id="mxMGlobal">联邦全局' + (st.trained ? '（v' + st.version + '）' : '') + '</button>' +
+      '<button type="button" class="mx-sbtn' + (mxModelSel === 'baseline' ? ' on' : '') + '" id="mxMBase">基础版</button>' +
+      '<span class="mx-mut">' + (st.trained ? ('6 院联合 · ' + st.params + ' 参数 · 损失 ' + st.loss) : '未训练：先到「联邦训练」发起一轮') + '</span></div>');
     h.push('<div class="mx-cgrid">');
     for(var i = 0; i < list.length; i++){
       h.push('<button type="button" class="mx-chip" data-s="' + hgxEsc(list[i]) + '">' + hgxEsc(list[i]) + '</button>');
@@ -1214,16 +1236,31 @@ function mxOpenDiag(){
         QS('#mxCnt').textContent = '已选 ' + mxPicked.length + ' 项';
       });
     });
+    function paintModel(){
+      if(QS('#mxMGlobal')){ QS('#mxMGlobal').classList.toggle('on', mxModelSel === 'global'); }
+      if(QS('#mxMBase')){ QS('#mxMBase').classList.toggle('on', mxModelSel === 'baseline'); }
+    }
+    if(QS('#mxMGlobal')){ QS('#mxMGlobal').addEventListener('click', function(){ mxModelSel = 'global'; paintModel(); }); }
+    if(QS('#mxMBase')){ QS('#mxMBase').addEventListener('click', function(){ mxModelSel = 'baseline'; paintModel(); }); }
     QS('#mxClr').addEventListener('click', function(){
       mxPicked = [];
       Array.prototype.forEach.call(chips, function(c){ c.classList.remove('on'); });
       QS('#mxCnt').textContent = '已选 0 项'; QS('#mxRes').innerHTML = '';
     });
+    var autoPick = q.get('pick');
+    if(autoPick){
+      Array.prototype.forEach.call(chips, function(c){
+        var pv = c.getAttribute('data-s');
+        if(autoPick.indexOf(pv) >= 0 && mxPicked.indexOf(pv) < 0){ mxPicked.push(pv); c.classList.add('on'); }
+      });
+      QS('#mxCnt').textContent = '已选 ' + mxPicked.length + ' 项';
+      if(q.get('autorun') === '1'){ setTimeout(function(){ QS('#mxGo').click(); }, 400); }
+    }
     QS('#mxGo').addEventListener('click', function(){
       if(!mxPicked.length){ toast('请先点选至少一个症状'); return; }
       var res = QS('#mxRes');
       res.innerHTML = '<div class="mx-load"><span class="mx-spin"></span> 推理中…</div>';
-      hgxPost('/api/diagnose', { symptoms: mxPicked, hospital_id: HGX.hospital }).then(function(r){
+      hgxPost('/api/diagnose', { symptoms: mxPicked, hospital_id: HGX.hospital, model: mxModelSel }).then(function(r){
         if(!r.ok){ throw new Error('HTTP ' + r.status); }
         var arr = r.data;
         if(!arr || !arr.length){ res.innerHTML = '<p class="mx-note">未匹配到相关疾病，请增加或更换症状后重试。</p>'; return; }
@@ -1233,8 +1270,9 @@ function mxOpenDiag(){
           h2.push('<div class="mx-card">');
           h2.push('<div class="mx-ch"><span class="mx-cic">' + hgxEsc(d.icon || '·') + '</span><b>' + hgxEsc(d.disease) + '</b>' +
                   '<span class="mx-badge mx-sv-' + hgxEsc(d.severity) + '">' + hgxEsc(d.severity) + '</span>' +
+                  (d.model_ver ? '<span class="mx-badge mx-model">全局 v' + d.model_ver + '</span>' : '') +
                   '<span class="mx-cdept">' + hgxEsc(d.dept) + ' · 命中 ' + d.matched + '/' + d.total + ' 症状</span>' +
-                  '<span class="mx-cscore">' + d.score + '<i>分</i></span></div>');
+                  '<span class="mx-cscore">' + d.score + '<i>分</i>' + (d.score_base != null ? '<em class="mx-based">基础版 ' + d.score_base + '</em>' : '') + '</span></div>');
           h2.push('<div class="mx-bar"><i style="width:' + Math.max(2, Math.min(100, d.score)) + '%"></i></div>');
           h2.push('<div class="mx-meta">');
           h2.push('<section><h5>推荐检查</h5><p>' + hgxEsc((d.tests || []).join('、') || '—') + '</p></section>');
@@ -1254,15 +1292,43 @@ function mxOpenDiag(){
   }).catch(function(){ mxBody.innerHTML = '<p class="mx-err">症状数据加载失败，请稍后重试。</p>'; });
 }
 
-/* —— ② 知识图谱（/api/graph + /api/diseases） —— */
+/* —— ② 知识图谱（/api/graph · 本院视图 / 联邦聚合视图） —— */
+var mxGScope = 'local';
+var mxGCur = 0;
 function mxOpenGraph(){
-  mxShow('知识图谱', '9 类疾病 × 症状 / 药物 / 检查 · 点击左侧疾病查看关联网络');
-  Promise.all([hgxCache('graph', '/api/graph'), hgxCache('diseases', '/api/diseases')]).then(function(out){
-    var dis = out[1];
+  mxShow('知识图谱', '本院视图 / 联邦聚合视图 · 点击左侧疾病查看关联网络');
+  var hq = HGX.hospital, sc = (hq === 'ALL') ? 'fed' : (q.get('gscope') || mxGScope);
+  Promise.all([
+    hgxGet('/api/graph?scope=local&hospital=' + encodeURIComponent(hq)),
+    hgxGet('/api/graph?scope=fed'),
+    hgxCache('diseases', '/api/diseases')
+  ]).then(function(out){
+    HGX_CACHE.graphLoc = out[0];
+    HGX_CACHE.graphFed = out[1];
+    var dis = out[2];
+    mxGScope = sc;
+    var ln = out[0].meta ? out[0].meta.edges_in_view : (out[0].edges || []).length;
+    var fn = out[1].meta ? out[1].meta.edges_in_view : (out[1].edges || []).length;
+    var add = 0, i;
+    for(i = 0; i < (out[1].edges || []).length; i++){
+      var e1 = out[1].edges[i];
+      if(!(e1.hospitals && e1.hospitals[hq])){ add++; }
+    }
+    if(hq === 'ALL'){ add = 0; }
     var h = [];
+    h.push('<div class="mx-scope">');
+    h.push('<span class="mx-mut">视图：</span>');
+    if(hq !== 'ALL'){
+      h.push('<button type="button" class="mx-sbtn' + (sc === 'local' ? ' on' : '') + '" id="mxGS-L">本院视图（' + hgxEsc(hq) + ' 院）</button>');
+      h.push('<button type="button" class="mx-sbtn' + (sc === 'fed' ? ' on' : '') + '" id="mxGS-F">联邦聚合视图</button>');
+      h.push('<span class="mx-mut">全图关联：本院 ' + ln + ' 条 / 联邦聚合 ' + fn + ' 条（+' + add + ' 条来自其他院）</span>');
+    } else {
+      h.push('<span class="mx-mut">全图关联：联邦聚合 ' + fn + ' 条 · 聚合自 6 院</span>');
+    }
+    h.push('</div>');
     h.push('<div class="mx-gwrap"><div class="mx-glist" id="mxGList">');
-    for(var i = 0; i < dis.length; i++){
-      h.push('<button type="button" class="mx-gitem" data-i="' + i + '"><span class="mx-cic">' + hgxEsc(dis[i].icon || '·') + '</span><span>' + hgxEsc(dis[i].name) + '</span><span class="mx-gsv">' + hgxEsc(dis[i].severity) + '</span></button>');
+    for(var j = 0; j < dis.length; j++){
+      h.push('<button type="button" class="mx-gitem" data-i="' + j + '"><span class="mx-cic">' + hgxEsc(dis[j].icon || '·') + '</span><span>' + hgxEsc(dis[j].name) + '</span><span class="mx-gsv">' + hgxEsc(dis[j].severity) + '</span></button>');
     }
     h.push('</div><div id="mxGPan"><div class="mx-svgbox"><p class="mx-note">选择左侧疾病，查看知识关联网络。</p></div></div></div>');
     h.push('<div id="mxGDetail"></div>');
@@ -1275,21 +1341,39 @@ function mxOpenGraph(){
         mxGraphRender(parseInt(b.getAttribute('data-i'), 10));
       });
     });
+    var bL = QS('#mxGS-L'), bF = QS('#mxGS-F');
+    if(bL){ bL.addEventListener('click', function(){
+      if(mxGScope === 'local'){ return; }
+      mxGScope = 'local'; bL.classList.add('on'); if(bF){ bF.classList.remove('on'); }
+      mxGraphRender(mxGCur);
+    }); }
+    if(bF){ bF.addEventListener('click', function(){
+      if(mxGScope === 'fed'){ return; }
+      mxGScope = 'fed'; bF.classList.add('on'); if(bL){ bL.classList.remove('on'); }
+      mxGraphRender(mxGCur);
+    }); }
     if(items.length){ items[0].classList.add('on'); mxGraphRender(0); }
   }).catch(function(){ mxBody.innerHTML = '<p class="mx-err">图谱数据加载失败，请稍后重试。</p>'; });
 }
 function mxGraphRender(idx){
-  var graph = HGX_CACHE.graph, dis = HGX_CACHE.diseases;
+  mxGCur = idx;
+  var graph = (mxGScope === 'fed') ? HGX_CACHE.graphFed : HGX_CACHE.graphLoc;
+  var dis = HGX_CACHE.diseases;
   if(!graph || !dis || !dis[idx]){ return; }
   var d0 = dis[idx], nodes = graph.nodes || [], edges = graph.edges || [];
   var self = null, k;
   for(k = 0; k < nodes.length; k++){ if(nodes[k].type === 'disease' && nodes[k].label === d0.name){ self = nodes[k]; break; } }
   var nb = { symptom: [], drug: [], test: [], dept: [] };
+  var nbE = {};
   if(self){
     for(k = 0; k < edges.length; k++){
-      var e = edges[k];
-      if(e.source === self.id){ var t1 = nodes[e.target]; if(t1 && nb[t1.type] !== undefined && nb[t1.type].indexOf(t1.label) < 0){ nb[t1.type].push(t1.label); } }
-      if(e.target === self.id){ var s1 = nodes[e.source]; if(s1 && nb[s1.type] !== undefined && nb[s1.type].indexOf(s1.label) < 0){ nb[s1.type].push(s1.label); } }
+      var e = edges[k], other = null;
+      if(e.source === self.id){ other = nodes[e.target]; }
+      else if(e.target === self.id){ other = nodes[e.source]; }
+      if(other && nb[other.type] !== undefined && nb[other.type].indexOf(other.label) < 0){
+        nb[other.type].push(other.label);
+        nbE[other.label] = { cov: e.covers || 1, w: e.w || 0, mine: !!(e.hospitals && e.hospitals[HGX.hospital]) };
+      }
     }
   }
   var items = [];
@@ -1304,7 +1388,19 @@ function mxGraphRender(idx){
   for(var i2 = 0; i2 < items.length; i2++){
     var a = (i2 / Math.max(items.length, 1)) * Math.PI * 2 - Math.PI / 2;
     var x = cx + Math.cos(a) * R, y = cy + Math.sin(a) * R;
-    g.push('<line x1="' + cx + '" y1="' + cy + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '" style="stroke:rgba(120,150,220,.22);stroke-width:1"/>');
+    var st2 = nbE[items[i2].label] || {};
+    var lineStyle;
+    if(mxGScope === 'fed'){
+      if(!st2.mine){
+        lineStyle = 'stroke:rgba(127,216,240,.9);stroke-width:1.7;stroke-dasharray:6,4';
+      } else {
+        var op2 = Math.min(0.6, 0.12 + 0.07 * (st2.cov || 1));
+        lineStyle = 'stroke:rgba(120,150,220,' + op2.toFixed(2) + ');stroke-width:' + (0.8 + 0.18 * (st2.cov || 1)).toFixed(2);
+      }
+    } else {
+      lineStyle = 'stroke:rgba(120,150,220,.22);stroke-width:1';
+    }
+    g.push('<line x1="' + cx + '" y1="' + cy + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '" style="' + lineStyle + '"/>');
     g.push('<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="5" style="fill:' + items[i2].color + '"/>');
     var lx = cx + Math.cos(a) * (R + 16), ly = cy + Math.sin(a) * (R + 16);
     var anchor = 'middle';
@@ -1316,13 +1412,31 @@ function mxGraphRender(idx){
   g.push('<text x="' + cx + '" y="' + (cy + 21) + '" text-anchor="middle" style="fill:#cfe0ff;font-size:11px">' + hgxEsc(d0.name) + '</text>');
   g.push('</svg>');
   var pan = QS('#mxGPan');
-  pan.innerHTML = '<div class="mx-svgbox">' + g.join('') +
-    '<div class="mx-legend"><span><i style="background:#5ea2ff"></i>症状 ' + nb.symptom.length + '</span>' +
+  var legend = '<div class="mx-legend"><span><i style="background:#5ea2ff"></i>症状 ' + nb.symptom.length + '</span>' +
     '<span><i style="background:#37d3a0"></i>药物 ' + nb.drug.length + '</span>' +
     '<span><i style="background:#f0b45a"></i>检查 ' + nb.test.length + '</span>' +
-    '<span><i style="background:#b48cf2"></i>科室</span></div></div>';
+    '<span><i style="background:#b48cf2"></i>科室</span>' +
+    (mxGScope === 'fed' ? '<span><i style="background:#7fd8f0"></i>他院新增（虚线）</span>' : '') + '</div>';
+  pan.innerHTML = '<div class="mx-svgbox">' + g.join('') + legend + '</div>';
+
+  function countDis(G){
+    var c = 0, nw = 0, es = (G && G.edges) || [], ns = (G && G.nodes) || [], q3;
+    for(q3 = 0; q3 < es.length; q3++){
+      var e3 = es[q3], sN = ns[e3.source], tN = ns[e3.target], lab = null;
+      if(sN && sN.label === d0.name){ lab = tN ? tN.label : ''; }
+      else if(tN && tN.label === d0.name){ lab = sN ? sN.label : ''; }
+      if(lab !== null){
+        c++;
+        if(!(e3.hospitals && e3.hospitals[HGX.hospital])){ nw++; }
+      }
+    }
+    return [c, nw];
+  }
+  var locC = countDis(HGX_CACHE.graphLoc), fedC = countDis(HGX_CACHE.graphFed);
   var rd = [];
   rd.push('<div class="mx-detail"><section><h5>疾病信息</h5><p><b>' + hgxEsc(d0.name) + '</b> · ' + hgxEsc(d0.dept) + ' · 严重度 ' + hgxEsc(d0.severity) + '</p><p>' + hgxEsc((d0.cause || '—')).slice(0, 190) + '</p></section>');
+  rd.push('<section><h5>联邦聚合（本疾病）</h5><p>本院关联 <b>' + locC[0] + '</b> 条 · 联邦聚合 <b>' + fedC[0] + '</b> 条' +
+    (HGX.hospital !== 'ALL' ? ' · 其中 <b>' + fedC[1] + '</b> 条来自其他院（聚合补齐）' : ' · 聚合自 6 院') + '。</p></section>');
   rd.push('<section><h5>各院发病率（模拟）</h5>');
   var rates = d0.rates || {}, hids = ['A', 'B', 'C', 'D', 'E', 'F'], maxR = 0.0001, hi2;
   for(hi2 = 0; hi2 < hids.length; hi2++){ if((rates[hids[hi2]] || 0) > maxR){ maxR = rates[hids[hi2]]; } }
@@ -1334,24 +1448,37 @@ function mxGraphRender(idx){
   QS('#mxGDetail').innerHTML = rd.join('');
 }
 
-/* —— ③ 联邦训练（/api/fl/train · 后端真实运行 FedAvg） —— */
+/* —— ③ 联邦训练（/api/fl/train · 真 FedAvg · 全局模型下发诊断引擎） —— */
 function mxOpenFL(){
-  mxShow('联邦训练演示', '演示级 FedAvg · 合成模拟数据（非真实患者数据）');
-  hgxCache('fl', '/api/fl/train').then(function(fl){
+  mxShow('联邦训练演示', 'FedAvg · 合成模拟数据 · 训练后全局模型直接服务「AI 辅助诊断」');
+  Promise.all([
+    hgxGet('/api/fl/train'),
+    hgxGet('/api/fl/status').catch(function(){ return null; })
+  ]).then(function(out){
+    renderFL(out[0], out[1]);
+  }).catch(function(){ mxBody.innerHTML = '<p class="mx-err">联邦接口不可用：请确认后端服务已启动（/api/fl/train）。</p>'; });
+
+  function renderFL(fl, st){
+    if(st){ HGX_CACHE.flstatus = st; }
     var h = [];
-    h.push('<p class="mx-note">六家医院各自在本地训练，只上传模型参数（数据不出院）；服务器按样本数加权平均得到全局模型。下方曲线为后端真实运行结果。</p>');
+    h.push('<p class="mx-note">六家医院各自在本地训练（数据一步不出院），只上传模型参数；服务器按样本量加权聚合出<b>全局诊断模型</b>，训练完成后自动下发到「AI 辅助诊断」模块。</p>');
+    h.push('<div class="mx-flstat">' + (st && st.trained
+      ? ('<span>全局模型 <b>v' + st.version + '</b> · 训练于 ' + hgxEsc(st.trained_at || '—') + ' · <b>' + st.params + '</b> 个参数 · 六院联合样本 <b>' + st.total_samples + '</b> · 损失 <b>' + st.loss + '</b> · 准确率 <b>' + st.acc + '%</b></span>')
+      : '<span>尚未训练：点击「再训一轮」发起首轮联邦训练</span>') + '</div>');
+    var bests = fl.best_solo || null;
     h.push('<div class="mx-flcards">');
     for(var i = 0; i < fl.solo.length; i++){
       var s1 = fl.solo[i];
-      h.push('<div class="mx-flcard"><b>' + hgxEsc(s1.name) + '</b><span class="mx-mut">样本 ' + s1.n + ' · 单干损失 ' + s1.loss + '</span></div>');
+      h.push('<div class="mx-flcard"><b>' + hgxEsc(s1.name) + '</b><span class="mx-mut">样本 ' + s1.n + ' · 单干损失 ' + s1.loss + ' · 准确率 ' + s1.acc + '%</span></div>');
     }
-    h.push('<div class="mx-flcard mx-hl"><b>联邦全局模型</b><span class="mx-mut">' + fl.rounds + ' 轮加权聚合 · 损失 ' + fl.final.loss + '（优于任一单干）</span></div>');
+    h.push('<div class="mx-flcard mx-hl"><b>联邦全局模型</b><span class="mx-mut">' + fl.rounds + ' 轮加权聚合 · 损失 ' + fl.final.loss + ' · 准确率 ' + fl.final.acc + '%' + (bests ? '（优于最好单院 ' + bests.loss + '）' : '') + '</span></div>');
     h.push('</div>');
     h.push('<canvas id="mxFlCv" class="mx-canvas" height="320"></canvas>');
     h.push('<div class="mx-acts"><span class="mx-mut" id="mxFlTip">共 ' + fl.rounds + ' 轮 · 参训样本 ' + fl.total_samples + '</span>' +
-           '<button class="btn primary sm" id="mxFlPlay" type="button">播放一轮</button></div>');
+           '<button class="btn primary sm" id="mxFlRetrain" type="button">再训一轮</button>' +
+           '<button class="btn ghost dark sm" id="mxFlPlay" type="button">播放训练</button></div>');
     mxBody.innerHTML = h.join('');
-    var cv = QS('#mxFlCv'), tip = QS('#mxFlTip'), playBtn = QS('#mxFlPlay');
+    var cv = QS('#mxFlCv'), tip = QS('#mxFlTip'), playBtn = QS('#mxFlPlay'), retrainBtn = QS('#mxFlRetrain');
     var dpr = Math.min(2, window.devicePixelRatio || 1);
     var roundsShown = 0;
     function drawAll(){
@@ -1399,16 +1526,38 @@ function mxOpenFL(){
       var t = setInterval(function(){
         roundsShown = Math.min(fl.rounds, roundsShown + 1);
         drawAll();
-        tip.textContent = '第 ' + roundsShown + ' 轮 · 全局损失 ' + fl.history[roundsShown].loss;
+        tip.textContent = '第 ' + roundsShown + ' 轮 · 全局损失 ' + fl.history[roundsShown].loss + ' · 准确率 ' + fl.history[roundsShown].acc + '%';
         if(roundsShown >= fl.rounds){
           clearInterval(t);
-          tip.textContent = fl.rounds + ' 轮完成 · 全局损失 ' + fl.final.loss + ' · 参训样本 ' + fl.total_samples;
+          tip.textContent = fl.rounds + ' 轮完成 · 全局损失 ' + fl.final.loss + ' · 准确率 ' + fl.final.acc + '% · 参训样本 ' + fl.total_samples;
         }
       }, 300);
     });
+    retrainBtn.addEventListener('click', function(){
+      if(retrainBtn.disabled){ return; }
+      retrainBtn.disabled = true;
+      retrainBtn.textContent = '训练中…';
+      tip.textContent = '六院正在本地训练并聚合参数…';
+      hgxPost('/api/fl/train', {}).then(function(r){
+        if(!r.ok || !r.data || !r.data.ok){ retrainBtn.disabled = false; retrainBtn.textContent = '再训一轮'; tip.textContent = '训练失败，请重试'; return; }
+        hgxGet('/api/fl/status').then(function(st2){
+          HGX_CACHE.flstatus = st2;
+          toast('全局模型 v' + st2.version + ' 已下发至「AI 辅助诊断」');
+          renderFL(r.data, st2);
+        }).catch(function(){
+          toast('训练完成（状态接口暂不可用）');
+          renderFL(r.data, null);
+        });
+      }).catch(function(){
+        retrainBtn.disabled = false;
+        retrainBtn.textContent = '再训一轮';
+        tip.textContent = '训练请求失败，请重试';
+      });
+    });
     setTimeout(function(){ if(!played && !mxOvl.hidden){ playBtn.click(); } }, 500);
-  }).catch(function(){ mxBody.innerHTML = '<p class="mx-err">联邦接口不可用：请确认后端服务已启动（/api/fl/train）。</p>'; });
+  }
 }
+
 
 /* —— ④ AI 医疗问答（/api/chat · 知识库 RAG） —— */
 var mxChatHist = [];

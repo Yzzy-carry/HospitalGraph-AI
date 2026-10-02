@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """
-联邦医院知识图谱AI — Flask + MySQL 后端
+联邦医院知识图谱AI — Flask + MySQL 后端（v4.4 联邦融合版）
+- 图谱：本院视图 / 联邦聚合视图（各院贡献可见）
+- 诊断：接入联邦全局模型（真 FedAvg · 版本化 · 可切回基础公式）
 访问: http://localhost:5000
 """
 
@@ -124,15 +126,27 @@ def api_symptoms():
     return jsonify([r["name"] for r in q("SELECT name FROM symptoms ORDER BY name")])
 
 
-# ── API: 症状推理诊断（三因素加权）──
+# ── API: 症状推理诊断（三因素加权 · 联邦全局模型接入）──
 
 @app.route("/api/diagnose", methods=["POST"])
 def api_diagnose():
     data = request.get_json()
     symptoms = data.get("symptoms", [])
     hospital_id = data.get("hospital_id", "A")
+    model_sel = str(data.get("model") or "global").lower()
     if not symptoms:
         return jsonify([])
+
+    # 联邦能力层：全局模型（训练完成后自动生效；model=baseline 可切回基础公式）
+    W = None
+    used = None
+    if model_sel != "baseline" and _MODEL.get("w"):
+        W = _MODEL["w"]
+        used = {
+            "mode": "federated",
+            "version": _MODEL.get("version", 1),
+            "params": _MODEL.get("params", 0),
+        }
 
     diseases = q("SELECT * FROM diseases")
     results = []
@@ -146,12 +160,19 @@ def api_diagnose():
                 d["id"],
             )
         ]
-        matched = sum(1 for s in symptoms if s in ds_symptoms)
+        matched_syms = [s for s in symptoms if s in ds_symptoms]
+        matched = len(matched_syms)
         if matched == 0:
             continue
 
-        # 症状匹配度 (60%)
-        sm_score = matched / max(len(ds_symptoms), 1)
+        # 症状匹配度（60%）：全局模型 → 按学得的症状权重加权；否则基础公式
+        if W is not None and d["name"] in W:
+            wd = W[d["name"]]
+            num = sum(float(wd.get(s, 1.0)) for s in matched_syms)
+            den = sum(float(wd.get(s, 1.0)) for s in ds_symptoms) or 1.0
+            sm_score = num / den
+        else:
+            sm_score = matched / max(len(ds_symptoms), 1)
 
         # 本地发病率 (20%)
         rate_row = q(
@@ -167,6 +188,9 @@ def api_diagnose():
         sv_score = sv_map.get(d["severity"], 0.5)
 
         score = round((sm_score * 0.6 + br_score * 0.2 + sv_score * 0.2) * 100)
+        score_base = round(
+            (matched / max(len(ds_symptoms), 1) * 0.6 + br_score * 0.2 + sv_score * 0.2) * 100
+        )
         if score > 3:
             drugs = [
                 x["name"]
@@ -200,6 +224,8 @@ def api_diagnose():
                     "dept": d["dept"],
                     "severity": d["severity"],
                     "score": score,
+                    "score_base": score_base if W is not None else None,
+                    "model_ver": used["version"] if used else None,
                     "matched": matched,
                     "total": len(ds_symptoms),
                     "drugs": drugs,
@@ -214,11 +240,34 @@ def api_diagnose():
     return jsonify(results[:6])
 
 
-# ── API: 知识图谱（节点 + 边）──
+# ── API: 知识图谱（节点 + 边 · 联邦聚合：本院贡献 / 六院并集）──
 
-@app.route("/api/graph")
-def api_graph():
-    hospital_id = request.args.get("hospital", "A")
+_FED_HIDS = ["A", "B", "C", "D", "E", "F"]
+
+
+def _h_rand(*parts):
+    """确定性伪随机（同一条关联每次生成的权重/覆盖一致）"""
+    h = _hashlib.md5(("|".join(str(p) for p in parts)).encode("utf-8")).hexdigest()
+    return int(h[:8], 16)
+
+
+def _contrib(key):
+    """一条关联的『各院贡献』：覆盖 2–6 院，每院 2–29 例（演示级聚合口径）"""
+    cov = 2 + _h_rand("cov", key) % 5
+    rot = _h_rand("rot", key) % len(_FED_HIDS)
+    order = _FED_HIDS[rot:] + _FED_HIDS[:rot]
+    out = {}
+    for hh in order[:cov]:
+        out[hh] = 2 + _h_rand("w", key, hh) % 28
+    return out
+
+
+def _contrib_all(key):
+    """六院共识关联（核心症状/药物/检查：各院均有病例支持）"""
+    return {hh: 3 + _h_rand("w", key, hh) % 20 for hh in _FED_HIDS}
+
+
+def _build_graph(scope="fed", hospital="A"):
     nodes, edges, nm, nid = [], [], {}, 0
 
     def add_node(label, ntype):
@@ -230,37 +279,79 @@ def api_graph():
         nid += 1
         return nid - 1
 
-    diseases = q("SELECT * FROM diseases")
+    def push_edge(sid, tid, kind, key, core=False):
+        contrib = _contrib_all(key) if core else _contrib(key)
+        edges.append({
+            "source": sid, "target": tid, "kind": kind,
+            "hospitals": contrib, "covers": len(contrib),
+            "w": sum(contrib.values()),
+        })
+
+    diseases = q("SELECT * FROM diseases ORDER BY id")
     for d in diseases:
         did = add_node(d["name"], "disease")
         add_node(d["dept"], "dept")
-        edges.append({"source": did, "target": nm[d["dept"]]})
+        _dept_c = _contrib_all("dept|" + d["name"])
+        edges.append({
+            "source": did, "target": nm[d["dept"]], "kind": "dept",
+            "hospitals": _dept_c, "covers": len(_FED_HIDS),
+            "w": sum(_dept_c.values()),
+        })
 
-        for s in q(
+        syms = [x["name"] for x in q(
             "SELECT s.name FROM symptoms s "
             "JOIN disease_symptoms ds ON s.id = ds.symptom_id "
-            "WHERE ds.disease_id = %s",
-            d["id"],
-        ):
-            edges.append({"source": did, "target": add_node(s["name"], "symptom")})
+            "WHERE ds.disease_id = %s ORDER BY s.id", d["id"])]
+        for i, s in enumerate(syms):
+            push_edge(did, add_node(s, "symptom"), "symptom", "sym|%s|%s" % (d["name"], s), core=(i == 0))
 
-        for dr in q(
-            "SELECT d.name FROM drugs d "
-            "JOIN disease_drugs dd ON d.id = dd.drug_id "
-            "WHERE dd.disease_id = %s",
-            d["id"],
-        ):
-            edges.append({"source": did, "target": add_node(dr["name"], "drug")})
+        drs = [x["name"] for x in q(
+            "SELECT d2.name FROM drugs d2 "
+            "JOIN disease_drugs dd ON d2.id = dd.drug_id "
+            "WHERE dd.disease_id = %s ORDER BY d2.id", d["id"])]
+        for i, dr in enumerate(drs):
+            push_edge(did, add_node(dr, "drug"), "drug", "drug|%s|%s" % (d["name"], dr), core=(i == 0))
 
-        for t in q(
+        tss = [x["name"] for x in q(
             "SELECT t.name FROM tests t "
             "JOIN disease_tests dt ON t.id = dt.test_id "
-            "WHERE dt.disease_id = %s",
-            d["id"],
-        ):
-            edges.append({"source": did, "target": add_node(t["name"], "test")})
+            "WHERE dt.disease_id = %s ORDER BY t.id", d["id"])]
+        for i, t in enumerate(tss):
+            push_edge(did, add_node(t, "test"), "test", "test|%s|%s" % (d["name"], t), core=(i == 0))
 
-    return jsonify({"nodes": nodes, "edges": edges})
+    total_edges = len(edges)
+    if scope == "local" and hospital in _FED_HIDS:
+        kept = []
+        for e in edges:
+            if hospital in e["hospitals"]:
+                e2 = dict(e)
+                e2["w"] = e["hospitals"][hospital]
+                kept.append(e2)
+        edges = kept
+    elif scope == "local":
+        # 联邦中心等全局账号：本院视图退化为联邦聚合视图
+        scope = "fed"
+
+    return {
+        "nodes": nodes,
+        "edges": edges,
+        "meta": {
+            "scope": scope,
+            "hospital": hospital,
+            "hospitals_total": len(_FED_HIDS),
+            "edges_total_fed": total_edges,
+            "edges_in_view": len(edges),
+        },
+    }
+
+
+@app.route("/api/graph")
+def api_graph():
+    scope = (request.args.get("scope") or "fed").lower()
+    hospital = request.args.get("hospital") or "A"
+    if scope not in ("fed", "local"):
+        scope = "fed"
+    return jsonify(_build_graph(scope, hospital))
 
 
 # ── 模拟病例数据（固定种子）──
@@ -524,70 +615,255 @@ def legacy_page():
 
 
 # ============================================================
-# 联邦学习接口（演示级 FedAvg · 合成模拟数据）
+# 联邦能力层 v2（真实 FedAvg · 诊断评分模型 45 参数 + 模型下发）
 # ============================================================
-_FL_CACHE = {}
+import json as _fjson
+import time as _ftime
+
+_FL_SPECS = [
+    ("A", "中心医院", 120),
+    ("B", "市第一人民医院", 90),
+    ("C", "附属第三医院", 150),
+    ("D", "省第二人民医院", 60),
+    ("E", "妇幼保健院", 120),
+    ("F", "开发区医院", 60),
+]
+_FL_HIDS = [s[0] for s in _FL_SPECS]
+_FL_LR = 1.6
+_FL_EPOCHS = 6
+_FL_SOLO_EPOCHS = 40
+
+_MODEL = {
+    "w": None,
+    "version": 0,
+    "trained_at": None,
+    "params": 0,
+    "rounds": 0,
+    "loss": None,
+    "loss_base": None,
+    "acc": None,
+}
+_FL_LAST = None
+_MODEL_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "fed_model.json")
+_FL_LAST_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "fed_last.json")
 
 
-def _fl_run(rounds=15):
-    import numpy as _np
-    rng = _np.random.RandomState(42)
-    specs = [
-        ("A", "中心医院", 120, 1.15, 1.00),
-        ("B", "市第一人民医院", 90, 1.45, 1.05),
-        ("C", "附属第三医院", 150, 0.95, 0.98),
-        ("D", "省第二人民医院", 60, 1.70, 1.10),
-        ("E", "妇幼保健院", 120, 1.05, 0.95),
-        ("F", "开发区医院", 60, 1.55, 1.02),
-    ]
-    data = []
-    for hid, name, n, slope, base in specs:
-        x = rng.randn(n, 1) * 0.4 + base
-        y = slope * x + rng.randn(n, 1) * 0.15
-        data.append((hid, name, n, x, y))
-    ax = _np.vstack([d[3] for d in data])
-    ay = _np.vstack([d[4] for d in data])
+def _load_model():
+    try:
+        if os.path.exists(_MODEL_FILE):
+            with open(_MODEL_FILE, encoding="utf-8") as f:
+                blob = _fjson.load(f)
+            if blob.get("w"):
+                _MODEL.update(blob)
+                print("[联邦能力层] 已加载全局模型 v%s（%s 个参数）" % (blob.get("version"), blob.get("params")))
+    except Exception as e:
+        print("[联邦能力层] 模型加载失败：%s" % e)
 
-    def mse(w):
-        return float(_np.mean((ax * w - ay) ** 2))
 
-    def local_train(w, x, y, steps=2, lr=0.05):
-        n = len(x)
-        for _ in range(steps):
-            grad = (2.0 / n) * x.T @ (x * w - y)
-            w = w - lr * grad
-        return w
+def _save_model():
+    try:
+        os.makedirs(os.path.dirname(_MODEL_FILE), exist_ok=True)
+        with open(_MODEL_FILE, "w", encoding="utf-8") as f:
+            _fjson.dump(_MODEL, f, ensure_ascii=False, indent=1)
+        if _FL_LAST is not None:
+            with open(_FL_LAST_FILE, "w", encoding="utf-8") as f:
+                _fjson.dump(_FL_LAST, f, ensure_ascii=False)
+    except Exception as e:
+        print("[联邦能力层] 模型保存失败：%s" % e)
 
-    w = _np.zeros((1, 1))
-    history = [{"r": 0, "w": 0.0, "loss": round(mse(w), 4)}]
+
+def _fed_dataset():
+    """构建六院合成病例集（非真实患者数据）：各院病种先验不同（Non-IID）"""
+    import numpy as _fnp
+    rng = _fnp.random.RandomState(20261003)
+    diseases = q("SELECT * FROM diseases ORDER BY id")
+    names = [d["name"] for d in diseases]
+    D = len(names)
+    syms = [r["name"] for r in q("SELECT name FROM symptoms ORDER BY id")]
+    sidx = {s: i for i, s in enumerate(syms)}
+    S = len(syms)
+    dsyms = []
+    for d in diseases:
+        dsyms.append([sidx[x["name"]] for x in q(
+            "SELECT s.name FROM symptoms s "
+            "JOIN disease_symptoms ds ON s.id = ds.symptom_id "
+            "WHERE ds.disease_id = %s ORDER BY s.id", d["id"])])
+    cases = {}
+    for hi, (hid, hname, n) in enumerate(_FL_SPECS):
+        prior = _fnp.ones(D)
+        prior[(hi * 2) % D] *= 3.2
+        prior[(hi * 2 + 3) % D] *= 2.4
+        prior = prior / prior.sum()
+        X, Y = [], []
+        for _ in range(n):
+            y = int(rng.choice(D, p=prior))
+            pool = dsyms[y]
+            k = int(rng.randint(1, len(pool) + 1))
+            chosen = list(rng.choice(pool, size=k, replace=False))
+            if rng.rand() < 0.15:  # 不典型表现：混入一个其他症状
+                extra = int(rng.randint(0, S))
+                if extra not in chosen:
+                    chosen.append(extra)
+            x = _fnp.zeros(S)
+            for c in chosen:
+                x[c] = 1.0
+            X.append(x)
+            Y.append(y)
+        cases[hid] = (_fnp.array(X), _fnp.array(Y))
+    return names, syms, dsyms, cases
+
+
+def _fed_run(rounds=15):
+    """真实 FedAvg：六院本地训练多分类诊断评分模型 → 按样本量加权聚合"""
+    import numpy as _fnp
+    names, syms, dsyms, cases = _fed_dataset()
+    D = len(names)
+    S = len(syms)
+    X_all = _fnp.vstack([cases[h][0] for h, _, _ in _FL_SPECS])
+    Y_all = _fnp.concatenate([cases[h][1] for h, _, _ in _FL_SPECS])
+
+    def pooled_eval(Wm, b):
+        z = X_all @ Wm.T + b
+        z = z - z.max(axis=1, keepdims=True)
+        p = _fnp.exp(z)
+        p = p / p.sum(axis=1, keepdims=True)
+        loss = float(-_fnp.mean(_fnp.log(p[_fnp.arange(len(Y_all)), Y_all] + 1e-12)))
+        acc = float(_fnp.mean(p.argmax(axis=1) == Y_all))
+        return round(loss, 4), round(acc * 100, 1)
+
+    def local_fit(Wm, b, X, Y, epochs, lr):
+        Wm = Wm.copy()
+        b = b.copy()
+        n = len(X)
+        for _ in range(epochs):
+            z = X @ Wm.T + b
+            z = z - z.max(axis=1, keepdims=True)
+            p = _fnp.exp(z)
+            p = p / p.sum(axis=1, keepdims=True)
+            p[_fnp.arange(n), Y] -= 1.0
+            Wm -= lr * (p.T @ X) / n
+            b -= lr * p.mean(axis=0)
+        return Wm, b
+
+    W = _fnp.zeros((D, S))
+    b = _fnp.zeros(D)
+    loss0, acc0 = pooled_eval(W, b)
+    history = [{"r": 0, "loss": loss0, "acc": acc0}]
     for r in range(1, rounds + 1):
-        ws, ns = [], []
-        for hid, name, n, x, y in data:
-            ws.append(local_train(w.copy(), x, y))
+        Ws, bs, ns = [], [], []
+        for hid, hname, n in _FL_SPECS:
+            X, Y = cases[hid]
+            Wl, bl = local_fit(W, b, X, Y, _FL_EPOCHS, _FL_LR)
+            Ws.append(Wl)
+            bs.append(bl)
             ns.append(n)
-        total = sum(ns)
-        w = sum(wl * (nn / total) for wl, nn in zip(ws, ns))
-        history.append({"r": r, "w": round(float(w.item()), 4), "loss": round(mse(w), 4)})
+        tot = float(sum(ns))
+        W = sum(wl * (nn / tot) for wl, nn in zip(Ws, ns))
+        b = sum(bl * (nn / tot) for bl, nn in zip(bs, ns))
+        loss, acc = pooled_eval(W, b)
+        history.append({"r": r, "loss": loss, "acc": acc})
+
     solo = []
-    for hid, name, n, x, y in data:
-        ws = local_train(_np.zeros((1, 1)), x, y, steps=400)
-        solo.append({"id": hid, "name": name, "n": n, "w": round(float(ws.item()), 3), "loss": round(mse(ws), 3)})
+    for hid, hname, n in _FL_SPECS:
+        X, Y = cases[hid]
+        Wl, bl = local_fit(_fnp.zeros((D, S)), _fnp.zeros(D), X, Y, _FL_SOLO_EPOCHS, _FL_LR)
+        l2, a2 = pooled_eval(Wl, bl)
+        solo.append({"id": hid, "name": hname, "n": n, "loss": l2, "acc": a2})
+
+    # 导出可解释权重（症状重要度，按病种归一）；参数 = Σ症状权重 + 病种偏置
+    weights = {}
+    n_params = 0
+    for j, nm in enumerate(names):
+        vals = []
+        for i in dsyms[j]:
+            vals.append(max(0.2, float(W[j][i])))
+        mu = sum(vals) / max(len(vals), 1)
+        weights[nm] = {syms[i]: round(v / mu, 3) for i, v in zip(dsyms[j], vals)}
+        n_params += len(dsyms[j])
+    n_params += D
+    final = history[-1]
+    best_solo = min(solo, key=lambda x: x["loss"])
     return {
-        "ok": True, "rounds": rounds, "total_samples": int(sum(d[2] for d in data)),
-        "history": history, "solo": solo, "final": history[-1],
-        "note": "演示级 FedAvg · 合成模拟数据（非真实患者数据）",
+        "ok": True,
+        "rounds": rounds,
+        "total_samples": sum(s[2] for s in _FL_SPECS),
+        "history": history,
+        "solo": solo,
+        "final": final,
+        "global": {"loss": final["loss"], "acc": final["acc"]},
+        "best_solo": {"name": best_solo["name"], "loss": best_solo["loss"], "acc": best_solo["acc"]},
+        "params": n_params,
+        "weights": weights,
+        "note": "真实 FedAvg · 合成模拟数据（非真实患者数据）· 训练完成后全局模型自动供诊断引擎调用",
     }
 
 
-@app.route("/api/fl/train")
+def _restore_last():
+    global _FL_LAST
+    try:
+        if os.path.exists(_FL_LAST_FILE):
+            with open(_FL_LAST_FILE, encoding="utf-8") as f:
+                _FL_LAST = _fjson.load(f)
+            print("[联邦能力层] 已恢复最近训练结果（%s 轮）" % _FL_LAST.get("rounds", ""))
+    except Exception as e:
+        print("[联邦能力层] 训练结果恢复失败：%s" % e)
+
+
+def _fed_train(rounds=15):
+    """发起一轮联邦训练：聚合 → 版本 +1 → 下发（持久化）"""
+    result = _fed_run(rounds)
+    global _FL_LAST
+    _FL_LAST = result
+    _MODEL.update({
+        "w": result["weights"],
+        "version": _MODEL.get("version", 0) + 1,
+        "trained_at": _ftime.strftime("%Y-%m-%d %H:%M:%S"),
+        "params": result["params"],
+        "rounds": rounds,
+        "loss": result["final"]["loss"],
+        "acc": result["final"]["acc"],
+        "loss_base": result["history"][0]["loss"],
+    })
+    _save_model()
+    print("[联邦能力层] 全局模型 v%s 已下发（损失 %s → %s）" % (
+        _MODEL["version"], result["history"][0]["loss"], result["final"]["loss"]))
+    return result
+
+
+@app.route("/api/fl/train", methods=["GET", "POST", "OPTIONS"])
 def api_fl_train():
+    global _FL_LAST
+    if request.method == "OPTIONS":
+        return ("", 204)
     rounds = request.args.get("rounds", 15, type=int)
     rounds = max(1, min(30, rounds))
-    if rounds not in _FL_CACHE:
-        _FL_CACHE[rounds] = _fl_run(rounds)
-    return jsonify(_FL_CACHE[rounds])
+    if request.method == "POST":
+        return jsonify(_fed_train(rounds))
+    if _FL_LAST is None:
+        _FL_LAST = _fed_train(rounds)
+    return jsonify(_FL_LAST)
 
 
+@app.route("/api/fl/status")
+def api_fl_status():
+    return jsonify({
+        "ok": True,
+        "trained": bool(_MODEL.get("w")),
+        "mode": "federated" if _MODEL.get("w") else "baseline",
+        "version": _MODEL.get("version", 0),
+        "trained_at": _MODEL.get("trained_at"),
+        "params": _MODEL.get("params", 0),
+        "rounds": _MODEL.get("rounds", 0),
+        "loss": _MODEL.get("loss"),
+        "loss_base": _MODEL.get("loss_base"),
+        "acc": _MODEL.get("acc"),
+        "hospitals": len(_FL_SPECS),
+        "total_samples": sum(s[2] for s in _FL_SPECS),
+    })
+
+
+_load_model()
+_restore_last()
 
 
 # ── 启动 ──
@@ -934,7 +1210,7 @@ def photo_sample(fn):
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("  联邦医院知识图谱AI — 后端已启动")
+    print("  联邦医院知识图谱AI — 后端已启动（v4.4 联邦融合版）")
     print("  访问: http://localhost:5000")
     print("  API 列表:")
     print("    GET  /api/hospitals       — 医院列表")
@@ -948,7 +1224,10 @@ if __name__ == "__main__":
     print("    POST /api/login        — 登录（7 医院账号）")
     print("    POST /api/logout       — 退出登录")
     print("    GET  /api/me           — 会话查询")
-    print("    GET  /api/fl/train     — 联邦训练（FedAvg 演示）")
+    print("    GET  /api/fl/train     — 联邦训练结果（首次自动训练）")
+    print("    POST /api/fl/train     — 联邦训练·再训一轮（真实 FedAvg）")
+    print("    GET  /api/fl/status    — 联邦全局模型状态")
+    print("    GET  /api/graph        — 知识图谱（?scope=local|fed）")
     print("    GET  /legacy           — 旧版页面（保留通道）")
     print("=" * 50)
     app.run(host="127.0.0.1", port=5000, debug=True)

@@ -1,0 +1,1330 @@
+{
+ "hospitals": [
+  {
+   "id": "A",
+   "name": "中心医院",
+   "color": "#2563eb"
+  },
+  {
+   "id": "B",
+   "name": "市第一人民医院",
+   "color": "#0891b2"
+  },
+  {
+   "id": "C",
+   "name": "附属第三医院",
+   "color": "#7c3aed"
+  },
+  {
+   "id": "D",
+   "name": "省第二人民医院",
+   "color": "#059669"
+  },
+  {
+   "id": "E",
+   "name": "妇幼保健院",
+   "color": "#d97706"
+  },
+  {
+   "id": "F",
+   "name": "开发区医院",
+   "color": "#dc2626"
+  }
+ ],
+ "diseases": [
+  {
+   "id": 1,
+   "name": "急性心梗",
+   "icon": "",
+   "dept": "心内科",
+   "severity": "危急",
+   "cause": "冠状动脉粥样硬化斑块破裂→血栓→冠脉急性闭塞。高危因素：高血脂、高血压、吸烟、糖尿病、肥胖、家族史。"
+  },
+  {
+   "id": 2,
+   "name": "肺炎",
+   "icon": "",
+   "dept": "呼吸科",
+   "severity": "严重",
+   "cause": "细菌/病毒/真菌感染肺部。易感：免疫力低下、长期卧床、吸烟、慢阻肺。"
+  },
+  {
+   "id": 3,
+   "name": "2型糖尿病",
+   "icon": "",
+   "dept": "内分泌科",
+   "severity": "中度",
+   "cause": "胰岛素抵抗+分泌不足。病因：遗传+肥胖+久坐+高热量饮食。"
+  },
+  {
+   "id": 4,
+   "name": "脑卒中",
+   "icon": "",
+   "dept": "神经内科",
+   "severity": "危急",
+   "cause": "脑血管破裂或堵塞→脑组织损伤。缺血性80%+出血性20%。核心危险因素：高血压、房颤。"
+  },
+  {
+   "id": 5,
+   "name": "高血压",
+   "icon": "",
+   "dept": "心内科",
+   "severity": "轻度",
+   "cause": "原发性占95%。病因：遗传+高盐+肥胖+精神应激+缺乏运动+过量饮酒。"
+  },
+  {
+   "id": 6,
+   "name": "骨折",
+   "icon": "",
+   "dept": "骨科",
+   "severity": "中度",
+   "cause": "外伤/骨质疏松→骨连续性断裂。"
+  },
+  {
+   "id": 7,
+   "name": "慢性肾病",
+   "icon": "",
+   "dept": "肾内科",
+   "severity": "严重",
+   "cause": "糖尿病肾病+高血压肾损害+慢性肾炎→肾功能进行性下降。"
+  },
+  {
+   "id": 8,
+   "name": "消化性溃疡",
+   "icon": "",
+   "dept": "消化内科",
+   "severity": "轻度",
+   "cause": "Hp感染70%+NSAIDs长期使用。胃酸和胃蛋白酶自身消化。"
+  },
+  {
+   "id": 9,
+   "name": "哮喘",
+   "icon": "",
+   "dept": "呼吸科",
+   "severity": "中度",
+   "cause": "气道慢性炎症+高反应性+可逆性气流受限。遗传过敏体质+环境过敏原。"
+  }
+ ],
+ "symptoms": [
+  {
+   "id": 29,
+   "name": "上腹痛"
+  },
+  {
+   "id": 12,
+   "name": "乏力"
+  },
+  {
+   "id": 11,
+   "name": "体重下降"
+  },
+  {
+   "id": 13,
+   "name": "偏瘫"
+  },
+  {
+   "id": 3,
+   "name": "冷汗"
+  },
+  {
+   "id": 23,
+   "name": "功能障碍"
+  },
+  {
+   "id": 30,
+   "name": "反酸"
+  },
+  {
+   "id": 5,
+   "name": "发热"
+  },
+  {
+   "id": 2,
+   "name": "呼吸困难"
+  },
+  {
+   "id": 6,
+   "name": "咳嗽"
+  },
+  {
+   "id": 7,
+   "name": "咳痰"
+  },
+  {
+   "id": 33,
+   "name": "喘息"
+  },
+  {
+   "id": 31,
+   "name": "嗳气"
+  },
+  {
+   "id": 10,
+   "name": "多尿"
+  },
+  {
+   "id": 9,
+   "name": "多饮"
+  },
+  {
+   "id": 36,
+   "name": "夜间发作"
+  },
+  {
+   "id": 14,
+   "name": "失语"
+  },
+  {
+   "id": 18,
+   "name": "头晕"
+  },
+  {
+   "id": 15,
+   "name": "头痛"
+  },
+  {
+   "id": 26,
+   "name": "少尿"
+  },
+  {
+   "id": 19,
+   "name": "心悸"
+  },
+  {
+   "id": 4,
+   "name": "恶心"
+  },
+  {
+   "id": 16,
+   "name": "昏迷"
+  },
+  {
+   "id": 25,
+   "name": "水肿"
+  },
+  {
+   "id": 24,
+   "name": "畸形"
+  },
+  {
+   "id": 21,
+   "name": "疼痛"
+  },
+  {
+   "id": 22,
+   "name": "肿胀"
+  },
+  {
+   "id": 1,
+   "name": "胸痛"
+  },
+  {
+   "id": 34,
+   "name": "胸闷"
+  },
+  {
+   "id": 20,
+   "name": "视物模糊"
+  },
+  {
+   "id": 27,
+   "name": "食欲减退"
+  },
+  {
+   "id": 32,
+   "name": "黑便"
+  }
+ ],
+ "disease_symptoms": [
+  {
+   "disease_id": 1,
+   "symptom_id": 1
+  },
+  {
+   "disease_id": 1,
+   "symptom_id": 2
+  },
+  {
+   "disease_id": 2,
+   "symptom_id": 2
+  },
+  {
+   "disease_id": 1,
+   "symptom_id": 3
+  },
+  {
+   "disease_id": 1,
+   "symptom_id": 4
+  },
+  {
+   "disease_id": 2,
+   "symptom_id": 5
+  },
+  {
+   "disease_id": 2,
+   "symptom_id": 6
+  },
+  {
+   "disease_id": 9,
+   "symptom_id": 6
+  },
+  {
+   "disease_id": 2,
+   "symptom_id": 7
+  },
+  {
+   "disease_id": 3,
+   "symptom_id": 9
+  },
+  {
+   "disease_id": 3,
+   "symptom_id": 10
+  },
+  {
+   "disease_id": 3,
+   "symptom_id": 11
+  },
+  {
+   "disease_id": 3,
+   "symptom_id": 12
+  },
+  {
+   "disease_id": 7,
+   "symptom_id": 12
+  },
+  {
+   "disease_id": 4,
+   "symptom_id": 13
+  },
+  {
+   "disease_id": 4,
+   "symptom_id": 14
+  },
+  {
+   "disease_id": 4,
+   "symptom_id": 15
+  },
+  {
+   "disease_id": 5,
+   "symptom_id": 15
+  },
+  {
+   "disease_id": 4,
+   "symptom_id": 16
+  },
+  {
+   "disease_id": 5,
+   "symptom_id": 18
+  },
+  {
+   "disease_id": 5,
+   "symptom_id": 19
+  },
+  {
+   "disease_id": 5,
+   "symptom_id": 20
+  },
+  {
+   "disease_id": 6,
+   "symptom_id": 21
+  },
+  {
+   "disease_id": 6,
+   "symptom_id": 22
+  },
+  {
+   "disease_id": 6,
+   "symptom_id": 23
+  },
+  {
+   "disease_id": 6,
+   "symptom_id": 24
+  },
+  {
+   "disease_id": 7,
+   "symptom_id": 25
+  },
+  {
+   "disease_id": 7,
+   "symptom_id": 26
+  },
+  {
+   "disease_id": 7,
+   "symptom_id": 27
+  },
+  {
+   "disease_id": 8,
+   "symptom_id": 29
+  },
+  {
+   "disease_id": 8,
+   "symptom_id": 30
+  },
+  {
+   "disease_id": 8,
+   "symptom_id": 31
+  },
+  {
+   "disease_id": 8,
+   "symptom_id": 32
+  },
+  {
+   "disease_id": 9,
+   "symptom_id": 33
+  },
+  {
+   "disease_id": 9,
+   "symptom_id": 34
+  },
+  {
+   "disease_id": 9,
+   "symptom_id": 36
+  }
+ ],
+ "drugs": [
+  {
+   "id": 8,
+   "name": "二甲双胍"
+  },
+  {
+   "id": 13,
+   "name": "依达拉奉"
+  },
+  {
+   "id": 22,
+   "name": "促红素"
+  },
+  {
+   "id": 24,
+   "name": "克拉霉素"
+  },
+  {
+   "id": 20,
+   "name": "厄贝沙坦"
+  },
+  {
+   "id": 18,
+   "name": "头孢唑林"
+  },
+  {
+   "id": 5,
+   "name": "头孢曲松"
+  },
+  {
+   "id": 23,
+   "name": "奥美拉唑"
+  },
+  {
+   "id": 28,
+   "name": "孟鲁司特"
+  },
+  {
+   "id": 27,
+   "name": "布地奈德"
+  },
+  {
+   "id": 17,
+   "name": "布洛芬"
+  },
+  {
+   "id": 9,
+   "name": "格列美脲"
+  },
+  {
+   "id": 14,
+   "name": "氨氯地平"
+  },
+  {
+   "id": 7,
+   "name": "氨溴索"
+  },
+  {
+   "id": 2,
+   "name": "氯吡格雷"
+  },
+  {
+   "id": 26,
+   "name": "沙丁胺醇"
+  },
+  {
+   "id": 16,
+   "name": "硝苯地平"
+  },
+  {
+   "id": 4,
+   "name": "硝酸甘油"
+  },
+  {
+   "id": 21,
+   "name": "碳酸氢钠"
+  },
+  {
+   "id": 15,
+   "name": "缬沙坦"
+  },
+  {
+   "id": 3,
+   "name": "肝素"
+  },
+  {
+   "id": 10,
+   "name": "胰岛素"
+  },
+  {
+   "id": 19,
+   "name": "钙剂"
+  },
+  {
+   "id": 25,
+   "name": "铋剂"
+  },
+  {
+   "id": 1,
+   "name": "阿司匹林"
+  },
+  {
+   "id": 6,
+   "name": "阿奇霉素"
+  },
+  {
+   "id": 11,
+   "name": "阿替普酶"
+  }
+ ],
+ "disease_drugs": [
+  {
+   "disease_id": 1,
+   "drug_id": 1
+  },
+  {
+   "disease_id": 4,
+   "drug_id": 1
+  },
+  {
+   "disease_id": 1,
+   "drug_id": 2
+  },
+  {
+   "disease_id": 1,
+   "drug_id": 3
+  },
+  {
+   "disease_id": 1,
+   "drug_id": 4
+  },
+  {
+   "disease_id": 2,
+   "drug_id": 5
+  },
+  {
+   "disease_id": 2,
+   "drug_id": 6
+  },
+  {
+   "disease_id": 2,
+   "drug_id": 7
+  },
+  {
+   "disease_id": 3,
+   "drug_id": 8
+  },
+  {
+   "disease_id": 3,
+   "drug_id": 9
+  },
+  {
+   "disease_id": 3,
+   "drug_id": 10
+  },
+  {
+   "disease_id": 4,
+   "drug_id": 11
+  },
+  {
+   "disease_id": 4,
+   "drug_id": 13
+  },
+  {
+   "disease_id": 5,
+   "drug_id": 14
+  },
+  {
+   "disease_id": 5,
+   "drug_id": 15
+  },
+  {
+   "disease_id": 5,
+   "drug_id": 16
+  },
+  {
+   "disease_id": 6,
+   "drug_id": 17
+  },
+  {
+   "disease_id": 6,
+   "drug_id": 18
+  },
+  {
+   "disease_id": 6,
+   "drug_id": 19
+  },
+  {
+   "disease_id": 7,
+   "drug_id": 20
+  },
+  {
+   "disease_id": 7,
+   "drug_id": 21
+  },
+  {
+   "disease_id": 7,
+   "drug_id": 22
+  },
+  {
+   "disease_id": 8,
+   "drug_id": 23
+  },
+  {
+   "disease_id": 8,
+   "drug_id": 24
+  },
+  {
+   "disease_id": 8,
+   "drug_id": 25
+  },
+  {
+   "disease_id": 9,
+   "drug_id": 26
+  },
+  {
+   "disease_id": 9,
+   "drug_id": 27
+  },
+  {
+   "disease_id": 9,
+   "drug_id": 28
+  }
+ ],
+ "tests": [
+  {
+   "id": 16,
+   "name": "X光"
+  },
+  {
+   "id": 17,
+   "name": "三维CT"
+  },
+  {
+   "id": 3,
+   "name": "冠脉造影"
+  },
+  {
+   "id": 27,
+   "name": "呼出气一氧化氮"
+  },
+  {
+   "id": 10,
+   "name": "头部CT"
+  },
+  {
+   "id": 20,
+   "name": "尿常规"
+  },
+  {
+   "id": 23,
+   "name": "幽门螺杆菌检测"
+  },
+  {
+   "id": 1,
+   "name": "心电图"
+  },
+  {
+   "id": 11,
+   "name": "核磁共振"
+  },
+  {
+   "id": 21,
+   "name": "活检"
+  },
+  {
+   "id": 6,
+   "name": "痰培养"
+  },
+  {
+   "id": 7,
+   "name": "空腹血糖"
+  },
+  {
+   "id": 24,
+   "name": "粪便隐血"
+  },
+  {
+   "id": 8,
+   "name": "糖化血红蛋白"
+  },
+  {
+   "id": 9,
+   "name": "糖耐量试验"
+  },
+  {
+   "id": 2,
+   "name": "肌钙蛋白"
+  },
+  {
+   "id": 25,
+   "name": "肺功能检查"
+  },
+  {
+   "id": 15,
+   "name": "肾功能"
+  },
+  {
+   "id": 22,
+   "name": "胃镜"
+  },
+  {
+   "id": 4,
+   "name": "胸部CT"
+  },
+  {
+   "id": 13,
+   "name": "血压监测"
+  },
+  {
+   "id": 5,
+   "name": "血常规"
+  },
+  {
+   "id": 26,
+   "name": "过敏原检测"
+  },
+  {
+   "id": 12,
+   "name": "颈动脉超声"
+  }
+ ],
+ "disease_tests": [
+  {
+   "disease_id": 1,
+   "test_id": 1
+  },
+  {
+   "disease_id": 5,
+   "test_id": 1
+  },
+  {
+   "disease_id": 1,
+   "test_id": 2
+  },
+  {
+   "disease_id": 1,
+   "test_id": 3
+  },
+  {
+   "disease_id": 2,
+   "test_id": 4
+  },
+  {
+   "disease_id": 2,
+   "test_id": 5
+  },
+  {
+   "disease_id": 2,
+   "test_id": 6
+  },
+  {
+   "disease_id": 3,
+   "test_id": 7
+  },
+  {
+   "disease_id": 3,
+   "test_id": 8
+  },
+  {
+   "disease_id": 3,
+   "test_id": 9
+  },
+  {
+   "disease_id": 4,
+   "test_id": 10
+  },
+  {
+   "disease_id": 4,
+   "test_id": 11
+  },
+  {
+   "disease_id": 6,
+   "test_id": 11
+  },
+  {
+   "disease_id": 4,
+   "test_id": 12
+  },
+  {
+   "disease_id": 5,
+   "test_id": 13
+  },
+  {
+   "disease_id": 5,
+   "test_id": 15
+  },
+  {
+   "disease_id": 7,
+   "test_id": 15
+  },
+  {
+   "disease_id": 6,
+   "test_id": 16
+  },
+  {
+   "disease_id": 6,
+   "test_id": 17
+  },
+  {
+   "disease_id": 7,
+   "test_id": 20
+  },
+  {
+   "disease_id": 7,
+   "test_id": 21
+  },
+  {
+   "disease_id": 8,
+   "test_id": 22
+  },
+  {
+   "disease_id": 8,
+   "test_id": 23
+  },
+  {
+   "disease_id": 8,
+   "test_id": 24
+  },
+  {
+   "disease_id": 9,
+   "test_id": 25
+  },
+  {
+   "disease_id": 9,
+   "test_id": 26
+  },
+  {
+   "disease_id": 9,
+   "test_id": 27
+  }
+ ],
+ "preventions": [
+  {
+   "id": 1,
+   "disease_id": 1,
+   "content": "控制血压血脂"
+  },
+  {
+   "id": 2,
+   "disease_id": 1,
+   "content": "完全戒烟"
+  },
+  {
+   "id": 3,
+   "disease_id": 1,
+   "content": "每周150分钟有氧运动"
+  },
+  {
+   "id": 4,
+   "disease_id": 1,
+   "content": "低盐低脂饮食"
+  },
+  {
+   "id": 5,
+   "disease_id": 1,
+   "content": "定期心电图检查"
+  },
+  {
+   "id": 6,
+   "disease_id": 1,
+   "content": "保持BMI<25"
+  },
+  {
+   "id": 7,
+   "disease_id": 2,
+   "content": "接种肺炎疫苗"
+  },
+  {
+   "id": 8,
+   "disease_id": 2,
+   "content": "接种流感疫苗"
+  },
+  {
+   "id": 9,
+   "disease_id": 2,
+   "content": "勤洗手"
+  },
+  {
+   "id": 10,
+   "disease_id": 2,
+   "content": "室内通风"
+  },
+  {
+   "id": 11,
+   "disease_id": 2,
+   "content": "增强免疫力"
+  },
+  {
+   "id": 12,
+   "disease_id": 3,
+   "content": "控制体重BMI<24"
+  },
+  {
+   "id": 13,
+   "disease_id": 3,
+   "content": "每日运动30分钟"
+  },
+  {
+   "id": 14,
+   "disease_id": 3,
+   "content": "低GI饮食"
+  },
+  {
+   "id": 15,
+   "disease_id": 3,
+   "content": "监测血糖"
+  },
+  {
+   "id": 16,
+   "disease_id": 3,
+   "content": "限制精制碳水"
+  },
+  {
+   "id": 17,
+   "disease_id": 3,
+   "content": "充足睡眠"
+  },
+  {
+   "id": 18,
+   "disease_id": 4,
+   "content": "严格控制血压"
+  },
+  {
+   "id": 19,
+   "disease_id": 4,
+   "content": "房颤抗凝治疗"
+  },
+  {
+   "id": 20,
+   "disease_id": 4,
+   "content": "低盐低脂饮食"
+  },
+  {
+   "id": 21,
+   "disease_id": 4,
+   "content": "牢记FAST原则"
+  },
+  {
+   "id": 22,
+   "disease_id": 4,
+   "content": "每年颈动脉超声"
+  },
+  {
+   "id": 23,
+   "disease_id": 5,
+   "content": "每天盐<6克"
+  },
+  {
+   "id": 24,
+   "disease_id": 5,
+   "content": "每周150分钟有氧"
+  },
+  {
+   "id": 25,
+   "disease_id": 5,
+   "content": "管理压力"
+  },
+  {
+   "id": 26,
+   "disease_id": 5,
+   "content": "限制饮酒"
+  },
+  {
+   "id": 27,
+   "disease_id": 5,
+   "content": "家庭血压监测"
+  },
+  {
+   "id": 28,
+   "disease_id": 6,
+   "content": "老人防跌倒"
+  },
+  {
+   "id": 29,
+   "disease_id": 6,
+   "content": "补钙+维D"
+  },
+  {
+   "id": 30,
+   "disease_id": 6,
+   "content": "运动前热身"
+  },
+  {
+   "id": 31,
+   "disease_id": 6,
+   "content": "穿戴护具"
+  },
+  {
+   "id": 32,
+   "disease_id": 6,
+   "content": "骨密度检查"
+  },
+  {
+   "id": 33,
+   "disease_id": 7,
+   "content": "控制血压<130/80"
+  },
+  {
+   "id": 34,
+   "disease_id": 7,
+   "content": "避免肾毒性药物"
+  },
+  {
+   "id": 35,
+   "disease_id": 7,
+   "content": "每日饮水>1500ml"
+  },
+  {
+   "id": 36,
+   "disease_id": 7,
+   "content": "低蛋白饮食"
+  },
+  {
+   "id": 37,
+   "disease_id": 7,
+   "content": "定期查肾功能"
+  },
+  {
+   "id": 38,
+   "disease_id": 8,
+   "content": "根除Hp四联疗法"
+  },
+  {
+   "id": 39,
+   "disease_id": 8,
+   "content": "避免长期用NSAIDs"
+  },
+  {
+   "id": 40,
+   "disease_id": 8,
+   "content": "三餐规律"
+  },
+  {
+   "id": 41,
+   "disease_id": 8,
+   "content": "限制辛辣食物"
+  },
+  {
+   "id": 42,
+   "disease_id": 8,
+   "content": "管理压力"
+  },
+  {
+   "id": 43,
+   "disease_id": 9,
+   "content": "识别过敏原"
+  },
+  {
+   "id": 44,
+   "disease_id": 9,
+   "content": "规律吸入控制药"
+  },
+  {
+   "id": 45,
+   "disease_id": 9,
+   "content": "随身带沙丁胺醇"
+  },
+  {
+   "id": 46,
+   "disease_id": 9,
+   "content": "保持环境清洁"
+  },
+  {
+   "id": 47,
+   "disease_id": 9,
+   "content": "寒冷天戴口罩"
+  },
+  {
+   "id": 48,
+   "disease_id": 9,
+   "content": "制定应急计划"
+  }
+ ],
+ "prevalence_rates": [
+  {
+   "disease_id": 1,
+   "hospital_id": "A",
+   "rate": 0.08
+  },
+  {
+   "disease_id": 1,
+   "hospital_id": "B",
+   "rate": 0.06
+  },
+  {
+   "disease_id": 1,
+   "hospital_id": "C",
+   "rate": 0.04
+  },
+  {
+   "disease_id": 1,
+   "hospital_id": "D",
+   "rate": 0.07
+  },
+  {
+   "disease_id": 1,
+   "hospital_id": "E",
+   "rate": 0.03
+  },
+  {
+   "disease_id": 1,
+   "hospital_id": "F",
+   "rate": 0.05
+  },
+  {
+   "disease_id": 2,
+   "hospital_id": "A",
+   "rate": 0.18
+  },
+  {
+   "disease_id": 2,
+   "hospital_id": "B",
+   "rate": 0.2
+  },
+  {
+   "disease_id": 2,
+   "hospital_id": "C",
+   "rate": 0.22
+  },
+  {
+   "disease_id": 2,
+   "hospital_id": "D",
+   "rate": 0.19
+  },
+  {
+   "disease_id": 2,
+   "hospital_id": "E",
+   "rate": 0.15
+  },
+  {
+   "disease_id": 2,
+   "hospital_id": "F",
+   "rate": 0.17
+  },
+  {
+   "disease_id": 3,
+   "hospital_id": "A",
+   "rate": 0.15
+  },
+  {
+   "disease_id": 3,
+   "hospital_id": "B",
+   "rate": 0.14
+  },
+  {
+   "disease_id": 3,
+   "hospital_id": "C",
+   "rate": 0.12
+  },
+  {
+   "disease_id": 3,
+   "hospital_id": "D",
+   "rate": 0.13
+  },
+  {
+   "disease_id": 3,
+   "hospital_id": "E",
+   "rate": 0.08
+  },
+  {
+   "disease_id": 3,
+   "hospital_id": "F",
+   "rate": 0.1
+  },
+  {
+   "disease_id": 4,
+   "hospital_id": "A",
+   "rate": 0.07
+  },
+  {
+   "disease_id": 4,
+   "hospital_id": "B",
+   "rate": 0.06
+  },
+  {
+   "disease_id": 4,
+   "hospital_id": "C",
+   "rate": 0.05
+  },
+  {
+   "disease_id": 4,
+   "hospital_id": "D",
+   "rate": 0.06
+  },
+  {
+   "disease_id": 4,
+   "hospital_id": "E",
+   "rate": 0.02
+  },
+  {
+   "disease_id": 4,
+   "hospital_id": "F",
+   "rate": 0.03
+  },
+  {
+   "disease_id": 5,
+   "hospital_id": "A",
+   "rate": 0.22
+  },
+  {
+   "disease_id": 5,
+   "hospital_id": "B",
+   "rate": 0.24
+  },
+  {
+   "disease_id": 5,
+   "hospital_id": "C",
+   "rate": 0.2
+  },
+  {
+   "disease_id": 5,
+   "hospital_id": "D",
+   "rate": 0.23
+  },
+  {
+   "disease_id": 5,
+   "hospital_id": "E",
+   "rate": 0.18
+  },
+  {
+   "disease_id": 5,
+   "hospital_id": "F",
+   "rate": 0.21
+  },
+  {
+   "disease_id": 6,
+   "hospital_id": "A",
+   "rate": 0.1
+  },
+  {
+   "disease_id": 6,
+   "hospital_id": "B",
+   "rate": 0.12
+  },
+  {
+   "disease_id": 6,
+   "hospital_id": "C",
+   "rate": 0.14
+  },
+  {
+   "disease_id": 6,
+   "hospital_id": "D",
+   "rate": 0.11
+  },
+  {
+   "disease_id": 6,
+   "hospital_id": "E",
+   "rate": 0.06
+  },
+  {
+   "disease_id": 6,
+   "hospital_id": "F",
+   "rate": 0.13
+  },
+  {
+   "disease_id": 7,
+   "hospital_id": "A",
+   "rate": 0.05
+  },
+  {
+   "disease_id": 7,
+   "hospital_id": "B",
+   "rate": 0.04
+  },
+  {
+   "disease_id": 7,
+   "hospital_id": "C",
+   "rate": 0.06
+  },
+  {
+   "disease_id": 7,
+   "hospital_id": "D",
+   "rate": 0.05
+  },
+  {
+   "disease_id": 7,
+   "hospital_id": "E",
+   "rate": 0.03
+  },
+  {
+   "disease_id": 7,
+   "hospital_id": "F",
+   "rate": 0.04
+  },
+  {
+   "disease_id": 8,
+   "hospital_id": "A",
+   "rate": 0.08
+  },
+  {
+   "disease_id": 8,
+   "hospital_id": "B",
+   "rate": 0.07
+  },
+  {
+   "disease_id": 8,
+   "hospital_id": "C",
+   "rate": 0.09
+  },
+  {
+   "disease_id": 8,
+   "hospital_id": "D",
+   "rate": 0.08
+  },
+  {
+   "disease_id": 8,
+   "hospital_id": "E",
+   "rate": 0.05
+  },
+  {
+   "disease_id": 8,
+   "hospital_id": "F",
+   "rate": 0.07
+  },
+  {
+   "disease_id": 9,
+   "hospital_id": "A",
+   "rate": 0.07
+  },
+  {
+   "disease_id": 9,
+   "hospital_id": "B",
+   "rate": 0.07
+  },
+  {
+   "disease_id": 9,
+   "hospital_id": "C",
+   "rate": 0.08
+  },
+  {
+   "disease_id": 9,
+   "hospital_id": "D",
+   "rate": 0.08
+  },
+  {
+   "disease_id": 9,
+   "hospital_id": "E",
+   "rate": 0.04
+  },
+  {
+   "disease_id": 9,
+   "hospital_id": "F",
+   "rate": 0.06
+  }
+ ]
+}
