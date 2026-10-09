@@ -1,12 +1,14 @@
 # -*- coding: utf-8 -*-
 """
-联邦医院知识图谱AI — Flask + MySQL 后端（v4.4 联邦融合版）
-- 图谱：本院视图 / 联邦聚合视图（各院贡献可见）
+联邦医院知识图谱AI — Flask + MySQL 后端（v4.7 应用台版）
+- 应用台：/app（侧栏导航 + 登录/注册 + 移动端直达）
+- 图谱：本院视图 / 联邦聚合视图（各院贡献可见，含示意口径标注）
 - 诊断：接入联邦全局模型（真 FedAvg · 版本化 · 可切回基础公式）
+- 安全：业务接口登录鉴权 + 本院数据隔离 + 未知医院校验
 访问: http://localhost:5000
 """
 
-from flask import Flask, render_template_string, request, jsonify, make_response
+from flask import Flask, render_template_string, request, jsonify, make_response, redirect
 import pymysql
 import random
 import os
@@ -27,36 +29,82 @@ DB = {
 @app.after_request
 def add_cors_headers(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, X-Token"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     return response
 
 
 # ── 数据库工具函数 ──
 
+class _DBError(Exception):
+    """数据库不可用（统一转 503 JSON）"""
+    pass
+
+
 def q(sql, *args):
     """执行查询并返回所有行"""
-    db = pymysql.connect(**DB)
-    cur = db.cursor()
-    cur.execute(sql, args)
-    rows = cur.fetchall()
-    db.close()
-    return rows
+    try:
+        db = pymysql.connect(**DB)
+        cur = db.cursor()
+        cur.execute(sql, args)
+        rows = cur.fetchall()
+        db.close()
+        return rows
+    except pymysql.MySQLError as e:
+        raise _DBError(str(e)[:200])
 
 
 def ex(sql, *args):
     """执行写操作"""
-    db = pymysql.connect(**DB)
-    cur = db.cursor()
-    cur.execute(sql, args)
-    db.commit()
-    db.close()
+    try:
+        db = pymysql.connect(**DB)
+        cur = db.cursor()
+        cur.execute(sql, args)
+        db.commit()
+        db.close()
+    except pymysql.MySQLError as e:
+        raise _DBError(str(e)[:200])
 
+
+# ── 统一 JSON 错误处理（API 契约：JSON 进、JSON 出）──
+
+@app.errorhandler(_DBError)
+def _h_db_error(e):
+    return jsonify({"ok": False, "error": "数据库暂不可用，请稍后重试"}), 503
+
+
+@app.errorhandler(404)
+def _h_notfound(e):
+    if request.path.startswith("/api/"):
+        return jsonify({"ok": False, "error": "接口不存在"}), 404
+    return e
+
+
+@app.errorhandler(405)
+def _h_notallowed(e):
+    if request.path.startswith("/api/"):
+        return jsonify({"ok": False, "error": "请求方法不允许"}), 405
+    return e
+
+
+@app.errorhandler(Exception)
+def _h_uncaught(e):
+    from werkzeug.exceptions import HTTPException
+    if isinstance(e, HTTPException):
+        return e
+    print("[未捕获异常]", repr(e))
+    return jsonify({"ok": False, "error": "服务内部错误，请稍后重试"}), 500
+
+
+app.config["PROPAGATE_EXCEPTIONS"] = False
 
 # ── 首页 ──
 
 @app.route("/")
 def index():
+    _mr = _mobile_redirect()
+    if _mr is not None:
+        return _mr
     html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
     with open(html_path, encoding="utf-8") as f:
         return render_template_string(f.read())
@@ -126,16 +174,31 @@ def api_symptoms():
     return jsonify([r["name"] for r in q("SELECT name FROM symptoms ORDER BY name")])
 
 
-# ── API: 症状推理诊断（三因素加权 · 联邦全局模型接入）──
+# ── API: 症状推理诊断（三因素加权 · 联邦全局模型接入 · 需登录）──
 
 @app.route("/api/diagnose", methods=["POST"])
 def api_diagnose():
-    data = request.get_json()
-    symptoms = data.get("symptoms", [])
-    hospital_id = data.get("hospital_id", "A")
-    model_sel = str(data.get("model") or "global").lower()
+    acc = _sess(request)
+    if not acc:
+        return _deny()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"ok": False, "error": "请求体必须为 JSON 对象"}), 400
+    raw = data.get("symptoms", [])
+    if not isinstance(raw, list):
+        return jsonify({"ok": False, "error": "symptoms 必须为字符串数组"}), 400
+    symptoms = []
+    for s in raw:
+        if isinstance(s, str):
+            s = s.strip()
+            if s and s not in symptoms:
+                symptoms.append(s)
     if not symptoms:
         return jsonify([])
+    hospital_id, err = _resolve_hospital(acc, data.get("hospital_id"))
+    if err:
+        return err
+    model_sel = str(data.get("model") or "global").lower()
 
     # 联邦能力层：全局模型（训练完成后自动生效；model=baseline 可切回基础公式）
     W = None
@@ -165,14 +228,14 @@ def api_diagnose():
         if matched == 0:
             continue
 
-        # 症状匹配度（60%）：全局模型 → 按学得的症状权重加权；否则基础公式
+        # 症状匹配度（60%）：全局模型 → 按学得的症状权重加权；否则基础公式（均钳制 ≤1）
         if W is not None and d["name"] in W:
             wd = W[d["name"]]
             num = sum(float(wd.get(s, 1.0)) for s in matched_syms)
             den = sum(float(wd.get(s, 1.0)) for s in ds_symptoms) or 1.0
-            sm_score = num / den
+            sm_score = min(1.0, num / den)
         else:
-            sm_score = matched / max(len(ds_symptoms), 1)
+            sm_score = min(1.0, matched / max(len(ds_symptoms), 1))
 
         # 本地发病率 (20%)
         rate_row = q(
@@ -187,10 +250,10 @@ def api_diagnose():
         sv_map = {"危急": 1.0, "严重": 0.7, "中度": 0.5, "轻度": 0.3}
         sv_score = sv_map.get(d["severity"], 0.5)
 
-        score = round((sm_score * 0.6 + br_score * 0.2 + sv_score * 0.2) * 100)
-        score_base = round(
-            (matched / max(len(ds_symptoms), 1) * 0.6 + br_score * 0.2 + sv_score * 0.2) * 100
-        )
+        score = min(100, round((sm_score * 0.6 + br_score * 0.2 + sv_score * 0.2) * 100))
+        score_base = min(100, round(
+            (min(1.0, matched / max(len(ds_symptoms), 1)) * 0.6 + br_score * 0.2 + sv_score * 0.2) * 100
+        ))
         if score > 3:
             drugs = [
                 x["name"]
@@ -238,7 +301,6 @@ def api_diagnose():
 
     results.sort(key=lambda x: x["score"], reverse=True)
     return jsonify(results[:6])
-
 
 # ── API: 知识图谱（节点 + 边 · 联邦聚合：本院贡献 / 六院并集）──
 
@@ -319,6 +381,7 @@ def _build_graph(scope="fed", hospital="A"):
         for i, t in enumerate(tss):
             push_edge(did, add_node(t, "test"), "test", "test|%s|%s" % (d["name"], t), core=(i == 0))
 
+    degraded = False
     total_edges = len(edges)
     if scope == "local" and hospital in _FED_HIDS:
         kept = []
@@ -331,6 +394,7 @@ def _build_graph(scope="fed", hospital="A"):
     elif scope == "local":
         # 联邦中心等全局账号：本院视图退化为联邦聚合视图
         scope = "fed"
+        degraded = True
 
     return {
         "nodes": nodes,
@@ -341,18 +405,24 @@ def _build_graph(scope="fed", hospital="A"):
             "hospitals_total": len(_FED_HIDS),
             "edges_total_fed": total_edges,
             "edges_in_view": len(edges),
+            "synthetic": True,
+            "degraded": degraded,
         },
     }
 
 
 @app.route("/api/graph")
 def api_graph():
+    acc = _sess(request)
+    if not acc:
+        return _deny()
     scope = (request.args.get("scope") or "fed").lower()
-    hospital = request.args.get("hospital") or "A"
     if scope not in ("fed", "local"):
         scope = "fed"
+    hospital, err = _resolve_hospital(acc, request.args.get("hospital"))
+    if err:
+        return err
     return jsonify(_build_graph(scope, hospital))
-
 
 # ── 模拟病例数据（固定种子）──
 
@@ -456,16 +526,25 @@ def _generate_cases(hospital_id):
 
 @app.route("/api/cases")
 def api_cases():
-    hospital_id = request.args.get("hospital", "A")
+    acc = _sess(request)
+    if not acc:
+        return _deny()
+    hospital_id, err = _resolve_hospital(acc, request.args.get("hospital"))
+    if err:
+        return err
     cases = _generate_cases(hospital_id)
     return jsonify(cases)
-
 
 # ── API: 医院统计 ──
 
 @app.route("/api/stats")
 def api_stats():
-    hospital_id = request.args.get("hospital", "A")
+    acc = _sess(request)
+    if not acc:
+        return _deny()
+    hospital_id, err = _resolve_hospital(acc, request.args.get("hospital"))
+    if err:
+        return err
     cases = _generate_cases(hospital_id)
 
     total = len(cases)
@@ -500,11 +579,15 @@ def api_stats():
         }
     )
 
-
-# ── API: 所有医院概览 ──
+# ── API: 所有医院概览（仅联邦中心）──
 
 @app.route("/api/overview")
 def api_overview():
+    acc = _sess(request)
+    if not acc:
+        return _deny()
+    if not acc.get("center"):
+        return jsonify({"ok": False, "error": "仅联邦中心账号可查看六院概览"}), 403
     hospitals = q("SELECT * FROM hospitals")
     results = []
     for h in hospitals:
@@ -533,7 +616,6 @@ def api_overview():
         )
     return jsonify(results)
 
-
 # ============================================================
 # 账号与会话（后端升级 v1 · 7 医院演示账号）
 # ============================================================
@@ -548,9 +630,109 @@ _ACCOUNTS = {
     "fuyou":    {"pw": "demo2026", "hospital": "E", "name": "妇幼保健院", "role": "hospital", "center": False},
     "kaifa":    {"pw": "demo2026", "hospital": "F", "name": "开发区医院", "role": "hospital", "center": False},
     "fcenter":  {"pw": "demo2026", "hospital": "ALL", "name": "联邦中心", "role": "admin", "center": True},
+    "demo":     {"pw": "demo2026", "hospital": "A", "name": "演示用户", "role": "user", "center": False},
 }
 
 _SESSIONS = {}  # token -> 会话信息
+_SESS_TTL = 24 * 3600
+
+
+def _tok(req):
+    return req.headers.get("X-Token") or req.args.get("token") or ""
+
+
+def _sess(req):
+    """返回登录账号 dict（滑动续期 + 过期清理）；未登录返回 None"""
+    tk = _tok(req)
+    s = _SESSIONS.get(tk)
+    if not s:
+        return None
+    if _time.time() - s["ts"] > _SESS_TTL:
+        _SESSIONS.pop(tk, None)
+        return None
+    s["ts"] = _time.time()
+    acc = _ACCOUNTS.get(s["username"])
+    if acc is not None:
+        acc = dict(acc)
+    else:
+        u = _RUSERS.get(s["username"])
+        if u is not None:
+            acc = {"hospital": u.get("hospital") or "A", "name": u.get("name") or s["username"],
+                   "role": "user", "center": False}
+    if acc is not None:
+        acc["username"] = s["username"]
+    return acc
+
+
+def _deny(msg="未登录或会话已失效，请重新登录"):
+    return jsonify({"ok": False, "error": msg}), 401
+
+
+def _resolve_hospital(acc, wanted):
+    """医院标识白名单 + 权限校验。
+    返回 (resolved, None) 或 (None, (resp, code))。
+    规则：缺省 = 本院；未知 = 400；普通账号访问他院 / ALL = 403；中心账号可任意。"""
+    w = str(wanted or "").strip().upper()
+    if not w:
+        w = acc["hospital"]
+    if w not in _FED_HIDS and w != "ALL":
+        return None, (jsonify({"ok": False, "error": "未知医院标识（仅支持 A–F，中心可用 ALL）"}), 400)
+    if acc.get("center"):
+        return w, None
+    if w == "ALL" or w != acc["hospital"]:
+        return None, (jsonify({"ok": False, "error": "无权访问其他机构数据"}), 403)
+    return w, None
+
+
+# ── 用户注册（v4.7 应用台）：注册用户存 data/users.json（盐 + SHA-256） ──
+
+_USERS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "users.json")
+_RUSERS = {}  # username -> {salt, hash, name, hospital, created}
+
+
+def _rusers_load():
+    try:
+        if os.path.exists(_USERS_FILE):
+            with open(_USERS_FILE, encoding="utf-8") as f:
+                blob = _fjson.load(f)
+            for k, v in (blob.get("users") or {}).items():
+                if isinstance(v, dict) and v.get("salt") and v.get("hash"):
+                    _RUSERS[k] = v
+            print("[v4.7] 已加载注册用户：%d 个" % len(_RUSERS))
+    except Exception as e:
+        print("[v4.7] 注册用户加载失败：%s" % e)
+
+
+def _rusers_save():
+    try:
+        os.makedirs(os.path.dirname(_USERS_FILE), exist_ok=True)
+        tmp = _USERS_FILE + ".tmp"
+        with open(tmp, "w", encoding="utf-8") as f:
+            _fjson.dump({"users": _RUSERS}, f, ensure_ascii=False, indent=1)
+        os.replace(tmp, _USERS_FILE)
+    except Exception as e:
+        print("[v4.7] 注册用户保存失败：%s" % e)
+
+
+def _pw_check(u, password):
+    try:
+        salt = str(u.get("salt") or "")
+        got = _hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
+        return got == u.get("hash")
+    except Exception:
+        return False
+
+
+def _find_account(username):
+    """统一账号查询（内置演示账号 + 注册用户）→ 安全字段 dict 或 None"""
+    acc = _ACCOUNTS.get(username)
+    if acc is not None:
+        return {"hospital": acc["hospital"], "name": acc["name"], "role": acc["role"], "center": acc["center"]}
+    u = _RUSERS.get(username)
+    if u is not None:
+        return {"hospital": u.get("hospital") or "A", "name": u.get("name") or username,
+                "role": "user", "center": False}
+    return None
 
 
 @app.route("/api/login", methods=["POST", "OPTIONS"])
@@ -558,17 +740,27 @@ def api_login():
     if request.method == "OPTIONS":
         return ("", 204)
     data = request.get_json(silent=True) or {}
-    username = (data.get("username") or "").strip().lower()
-    password = (data.get("password") or "").strip()
-    acc = _ACCOUNTS.get(username)
-    if not acc or password != acc["pw"]:
+    if not isinstance(data, dict):
+        return jsonify({"ok": False, "error": "请求体必须为 JSON 对象"}), 400
+    u_raw, p_raw = data.get("username"), data.get("password")
+    if not isinstance(u_raw, str) or not isinstance(p_raw, str):
+        return jsonify({"ok": False, "error": "用户名与密码必须为字符串"}), 400
+    username = u_raw.strip().lower()
+    password = p_raw.strip()
+    ok_pw = False
+    if username in _ACCOUNTS:
+        ok_pw = (password == _ACCOUNTS[username]["pw"])
+    elif username in _RUSERS:
+        ok_pw = _pw_check(_RUSERS[username], password)
+    if not ok_pw:
         return jsonify({"ok": False, "error": "账号或密码错误"}), 401
+    info = _find_account(username) or {}
     token = _uuid.uuid4().hex
     _SESSIONS[token] = {"username": username, "ts": _time.time()}
     return jsonify({
         "ok": True, "token": token,
-        "user": {"username": username, "hospital": acc["hospital"], "name": acc["name"],
-                 "role": acc["role"], "center": acc["center"]},
+        "user": {"username": username, "hospital": info.get("hospital"), "name": info.get("name"),
+                 "role": info.get("role"), "center": info.get("center")},
     })
 
 
@@ -590,21 +782,62 @@ def api_me():
     if _time.time() - sess["ts"] > 24 * 3600:
         _SESSIONS.pop(token, None)
         return jsonify({"ok": False, "error": "会话已过期"}), 401
-    acc = _ACCOUNTS.get(sess["username"], {})
+    acc = _find_account(sess["username"]) or {}
     return jsonify({
         "ok": True,
         "user": {"username": sess["username"], "hospital": acc.get("hospital"), "name": acc.get("name"),
                  "role": acc.get("role"), "center": acc.get("center")},
     })
 
+@app.route("/api/register", methods=["POST", "OPTIONS"])
+def api_register():
+    if request.method == "OPTIONS":
+        return ("", 204)
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({"ok": False, "error": "请求体必须为 JSON 对象"}), 400
+    u_raw, p_raw = data.get("username"), data.get("password")
+    if not isinstance(u_raw, str) or not isinstance(p_raw, str):
+        return jsonify({"ok": False, "error": "用户名与密码必须为字符串"}), 400
+    username = u_raw.strip().lower()
+    password = p_raw.strip()
+    name = str(data.get("name") or "").strip()[:20]
+    hospital = str(data.get("hospital") or "A").strip().upper()
+    _uchars = "abcdefghijklmnopqrstuvwxyz0123456789_"
+    if not (3 <= len(username) <= 20) or any(ch not in _uchars for ch in username):
+        return jsonify({"ok": False, "error": "用户名需为 3–20 位字母 / 数字 / 下划线"}), 400
+    if len(password) < 6:
+        return jsonify({"ok": False, "error": "密码至少 6 位"}), 400
+    if hospital not in _FED_HIDS:
+        return jsonify({"ok": False, "error": "所属院区无效（仅支持 A–F）"}), 400
+    if username in _ACCOUNTS or username in _RUSERS:
+        return jsonify({"ok": False, "error": "该用户名已被占用"}), 409
+    salt = os.urandom(16).hex()
+    pw_hash = _hashlib.sha256((salt + password).encode("utf-8")).hexdigest()
+    _RUSERS[username] = {"salt": salt, "hash": pw_hash, "name": name or username,
+                         "hospital": hospital, "created": _ftime.strftime("%Y-%m-%d %H:%M:%S")}
+    _rusers_save()
+    token = _uuid.uuid4().hex
+    _SESSIONS[token] = {"username": username, "ts": _time.time()}
+    return jsonify({
+        "ok": True, "token": token,
+        "user": {"username": username, "hospital": hospital, "name": name or username,
+                 "role": "user", "center": False},
+    })
+
+
 
 # ── 新版设计页（v4：登录已接入后台鉴权，离线时自动回退本地校验）──
 
 @app.route("/v4")
 def v4_page():
-    p4 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "v4.html")
-    with open(p4, encoding="utf-8") as f4:
-        return f4.read()
+    # 与 / 同一渲染管线（历史上为双文件，现统一渲染 index.html，避免双份漂移）
+    _mr = _mobile_redirect()
+    if _mr is not None:
+        return _mr
+    html_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index.html")
+    with open(html_path, encoding="utf-8") as f:
+        return render_template_string(f.read())
 
 
 @app.route("/legacy")
@@ -612,6 +845,29 @@ def legacy_page():
     p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "index_legacy.html")
     with open(p, encoding="utf-8") as f:
         return f.read()
+
+# ── 应用台（v4.7）：App 式界面 + 移动端直达 ──
+
+_MOBILE_UA_KEYS = ("android", "iphone", "ipad", "ipod", "mobile", "harmonyos", "windows phone")
+
+
+def _mobile_redirect():
+    """移动端访问落地页 → 直达应用台（?desktop=1 豁免，可查看完整版）"""
+    if request.args.get("desktop") == "1":
+        return None
+    ua = (request.headers.get("User-Agent") or "").lower()
+    if any(k in ua for k in _MOBILE_UA_KEYS):
+        qs = request.query_string.decode("utf-8")
+        return redirect("/app" + (("?" + qs) if qs else ""))
+    return None
+
+
+@app.route("/app")
+def app_page():
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), "app.html")
+    with open(p, encoding="utf-8") as f:
+        return render_template_string(f.read())
+
 
 
 # ============================================================
@@ -630,7 +886,7 @@ _FL_SPECS = [
 ]
 _FL_HIDS = [s[0] for s in _FL_SPECS]
 _FL_LR = 1.6
-_FL_EPOCHS = 6
+_FL_EPOCHS = 10
 _FL_SOLO_EPOCHS = 40
 
 _MODEL = {
@@ -663,21 +919,20 @@ def _load_model():
 def _save_model():
     try:
         os.makedirs(os.path.dirname(_MODEL_FILE), exist_ok=True)
-        with open(_MODEL_FILE, "w", encoding="utf-8") as f:
-            _fjson.dump(_MODEL, f, ensure_ascii=False, indent=1)
+        _atomic_write(_MODEL_FILE, _MODEL)
         if _FL_LAST is not None:
-            with open(_FL_LAST_FILE, "w", encoding="utf-8") as f:
-                _fjson.dump(_FL_LAST, f, ensure_ascii=False)
+            _atomic_write(_FL_LAST_FILE, _FL_LAST)
     except Exception as e:
         print("[联邦能力层] 模型保存失败：%s" % e)
 
-
 def _fed_dataset():
-    """构建六院合成病例集（非真实患者数据）：各院病种先验不同（Non-IID）"""
+    """构建六院训练集（合成模拟 + 本地反馈样本）与留出集；各院先验不同（Non-IID）"""
     import numpy as _fnp
     rng = _fnp.random.RandomState(20261003)
+    rng_h = _fnp.random.RandomState(77203)
     diseases = q("SELECT * FROM diseases ORDER BY id")
     names = [d["name"] for d in diseases]
+    nidx = {n: i for i, n in enumerate(names)}
     D = len(names)
     syms = [r["name"] for r in q("SELECT name FROM symptoms ORDER BY id")]
     sidx = {s: i for i, s in enumerate(syms)}
@@ -688,20 +943,16 @@ def _fed_dataset():
             "SELECT s.name FROM symptoms s "
             "JOIN disease_symptoms ds ON s.id = ds.symptom_id "
             "WHERE ds.disease_id = %s ORDER BY s.id", d["id"])])
-    cases = {}
-    for hi, (hid, hname, n) in enumerate(_FL_SPECS):
-        prior = _fnp.ones(D)
-        prior[(hi * 2) % D] *= 3.2
-        prior[(hi * 2 + 3) % D] *= 2.4
-        prior = prior / prior.sum()
+
+    def synth(rng_, prior, n):
         X, Y = [], []
         for _ in range(n):
-            y = int(rng.choice(D, p=prior))
+            y = int(rng_.choice(D, p=prior))
             pool = dsyms[y]
-            k = int(rng.randint(1, len(pool) + 1))
-            chosen = list(rng.choice(pool, size=k, replace=False))
-            if rng.rand() < 0.15:  # 不典型表现：混入一个其他症状
-                extra = int(rng.randint(0, S))
+            k = int(rng_.randint(1, len(pool) + 1))
+            chosen = list(rng_.choice(pool, size=k, replace=False))
+            if rng_.rand() < 0.15:
+                extra = int(rng_.randint(0, S))
                 if extra not in chosen:
                     chosen.append(extra)
             x = _fnp.zeros(S)
@@ -709,27 +960,87 @@ def _fed_dataset():
                 x[c] = 1.0
             X.append(x)
             Y.append(y)
-        cases[hid] = (_fnp.array(X), _fnp.array(Y))
-    return names, syms, dsyms, cases
+        return _fnp.array(X), _fnp.array(Y)
 
+    cases = {}
+    holdout = {}
+    fb_counts = {}
+    for hi, (hid, hname, n) in enumerate(_FL_SPECS):
+        prior = _fnp.ones(D)
+        prior[(hi * 2) % D] *= 3.2
+        prior[(hi * 2 + 3) % D] *= 2.4
+        prior = prior / prior.sum()
+        X, Y = synth(rng, prior, n)
+        # 本院反馈样本（数据不出院：直接进入本地训练集）
+        fbx, fby = [], []
+        for item in _FEEDBACK.get(hid, []):
+            yi = nidx.get(item.get("disease"))
+            if yi is None:
+                continue
+            x = _fnp.zeros(S)
+            got = False
+            if isinstance(item.get("symptoms"), list):
+                for s in item["symptoms"]:
+                    j = sidx.get(s)
+                    if j is not None:
+                        x[j] = 1.0
+                        got = True
+            if got:
+                fbx.append(x)
+                fby.append(yi)
+        if fbx:
+            X = _fnp.vstack([X, _fnp.array(fbx)])
+            Y = _fnp.concatenate([Y, _fnp.array(fby)])
+        fb_counts[hid] = len(fbx)
+        cases[hid] = (X, Y)
+        # 留出集（独立种子，仅评估用）
+        n_hold = max(25, int(n * 0.25))
+        holdout[hid] = synth(rng_h, prior, n_hold)
+    return names, syms, dsyms, cases, holdout, fb_counts
 
 def _fed_run(rounds=15):
-    """真实 FedAvg：六院本地训练多分类诊断评分模型 → 按样本量加权聚合"""
+    """真实 FedAvg：六院本地训练多分类诊断评分模型 → 按样本量加权聚合；含留出集评估"""
     import numpy as _fnp
-    names, syms, dsyms, cases = _fed_dataset()
+    names, syms, dsyms, cases, holdout, fb_counts = _fed_dataset()
     D = len(names)
     S = len(syms)
     X_all = _fnp.vstack([cases[h][0] for h, _, _ in _FL_SPECS])
     Y_all = _fnp.concatenate([cases[h][1] for h, _, _ in _FL_SPECS])
+    Xh = _fnp.vstack([holdout[h][0] for h, _, _ in _FL_SPECS])
+    Yh = _fnp.concatenate([holdout[h][1] for h, _, _ in _FL_SPECS])
 
-    def pooled_eval(Wm, b):
-        z = X_all @ Wm.T + b
+    def softmax(Wm, b, X):
+        z = X @ Wm.T + b
         z = z - z.max(axis=1, keepdims=True)
         p = _fnp.exp(z)
-        p = p / p.sum(axis=1, keepdims=True)
+        return p / p.sum(axis=1, keepdims=True)
+
+    def pooled_eval(Wm, b):
+        p = softmax(Wm, b, X_all)
         loss = float(-_fnp.mean(_fnp.log(p[_fnp.arange(len(Y_all)), Y_all] + 1e-12)))
         acc = float(_fnp.mean(p.argmax(axis=1) == Y_all))
         return round(loss, 4), round(acc * 100, 1)
+
+    def holdout_eval(Wm, b):
+        p = softmax(Wm, b, Xh)
+        pred = p.argmax(axis=1)
+        loss = float(-_fnp.mean(_fnp.log(p[_fnp.arange(len(Yh)), Yh] + 1e-12)))
+        acc = float(_fnp.mean(pred == Yh))
+        conf = [[0] * D for _ in range(D)]
+        for t, pr in zip(Yh, pred):
+            conf[int(t)][int(pr)] += 1
+        per = []
+        for j in range(D):
+            tp = conf[j][j]
+            fp = sum(conf[i][j] for i in range(D)) - tp
+            fn = sum(conf[j]) - tp
+            prec = tp / (tp + fp) if (tp + fp) else 0.0
+            rec = tp / (tp + fn) if (tp + fn) else 0.0
+            f1 = (2 * prec * rec / (prec + rec)) if (prec + rec) else 0.0
+            per.append({"name": names[j], "support": int(sum(conf[j])),
+                        "precision": round(prec * 100, 1), "recall": round(rec * 100, 1), "f1": round(f1 * 100, 1)})
+        return {"n": int(len(Yh)), "loss": round(loss, 4), "acc": round(acc * 100, 1),
+                "confusion": conf, "per_class": per}
 
     def local_fit(Wm, b, X, Y, epochs, lr):
         Wm = Wm.copy()
@@ -756,7 +1067,7 @@ def _fed_run(rounds=15):
             Wl, bl = local_fit(W, b, X, Y, _FL_EPOCHS, _FL_LR)
             Ws.append(Wl)
             bs.append(bl)
-            ns.append(n)
+            ns.append(len(Y))
         tot = float(sum(ns))
         W = sum(wl * (nn / tot) for wl, nn in zip(Ws, ns))
         b = sum(bl * (nn / tot) for bl, nn in zip(bs, ns))
@@ -768,7 +1079,7 @@ def _fed_run(rounds=15):
         X, Y = cases[hid]
         Wl, bl = local_fit(_fnp.zeros((D, S)), _fnp.zeros(D), X, Y, _FL_SOLO_EPOCHS, _FL_LR)
         l2, a2 = pooled_eval(Wl, bl)
-        solo.append({"id": hid, "name": hname, "n": n, "loss": l2, "acc": a2})
+        solo.append({"id": hid, "name": hname, "n": len(Y), "loss": l2, "acc": a2})
 
     # 导出可解释权重（症状重要度，按病种归一）；参数 = Σ症状权重 + 病种偏置
     weights = {}
@@ -783,20 +1094,24 @@ def _fed_run(rounds=15):
     n_params += D
     final = history[-1]
     best_solo = min(solo, key=lambda x: x["loss"])
+    ev = holdout_eval(W, b)
     return {
         "ok": True,
         "rounds": rounds,
-        "total_samples": sum(s[2] for s in _FL_SPECS),
+        "total_samples": int(len(Y_all)),
+        "synthetic_samples": sum(s[2] for s in _FL_SPECS),
+        "feedback_counts": fb_counts,
+        "feedback_since": {h: _FB_SINCE.get(h, 0) for h in _FL_HIDS},
         "history": history,
         "solo": solo,
         "final": final,
         "global": {"loss": final["loss"], "acc": final["acc"]},
         "best_solo": {"name": best_solo["name"], "loss": best_solo["loss"], "acc": best_solo["acc"]},
+        "holdout": ev,
         "params": n_params,
         "weights": weights,
-        "note": "真实 FedAvg · 合成模拟数据（非真实患者数据）· 训练完成后全局模型自动供诊断引擎调用",
+        "note": "真实 FedAvg · 合成模拟数据（非真实患者数据）+ 本院反馈样本 · 训练完成后全局模型自动供诊断引擎调用",
     }
-
 
 def _restore_last():
     global _FL_LAST
@@ -808,9 +1123,190 @@ def _restore_last():
     except Exception as e:
         print("[联邦能力层] 训练结果恢复失败：%s" % e)
 
+# ============================================================
+# v4.5 新能力：病例反馈数据泵 / 拍照联邦统计 / 训练材料导出
+# ============================================================
+_FEEDBACK_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "feedback.json")
+_PHOTO_STATS_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "photo_stats.json")
 
-def _fed_train(rounds=15):
-    """发起一轮联邦训练：聚合 → 版本 +1 → 下发（持久化）"""
+_FEEDBACK = {h: [] for h in _FL_HIDS}
+_FB_SINCE = {h: 0 for h in _FL_HIDS}
+_PHOTO_STATS = {h: {"wound": {}, "insect": {}, "level": {}, "total": 0} for h in _FL_HIDS}
+_K_ANON = 3
+
+# ── 飞书通知（v4.6）：数据采样 / 训练痕迹推送（异常只记日志，不影响主流程）──
+try:
+    import feishu_notify as _feishu
+except Exception as _feishu_err:
+    _feishu = None
+    print("[飞书] 通知模块加载失败：%s" % _feishu_err)
+
+
+def _atomic_write(path, obj):
+    tmp = path + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        _fjson.dump(obj, f, ensure_ascii=False, indent=1)
+    os.replace(tmp, path)
+
+
+def _load_aux():
+    try:
+        if os.path.exists(_FEEDBACK_FILE):
+            with open(_FEEDBACK_FILE, encoding="utf-8") as f:
+                blob = _fjson.load(f)
+            for h in _FL_HIDS:
+                _FEEDBACK[h] = (blob.get(h) or []) + _FEEDBACK.get(h, [])
+            print("[v4.5] 已加载本地反馈样本：%s" % {h: len(_FEEDBACK[h]) for h in _FL_HIDS})
+    except Exception as e:
+        print("[v4.5] 反馈样本加载失败：%s" % e)
+    try:
+        if os.path.exists(_PHOTO_STATS_FILE):
+            with open(_PHOTO_STATS_FILE, encoding="utf-8") as f:
+                blob2 = _fjson.load(f)
+            for h in _FL_HIDS:
+                if isinstance(blob2.get(h), dict):
+                    for k in _PHOTO_STATS[h]:
+                        if k != "total" and isinstance(blob2[h].get(k), dict):
+                            _PHOTO_STATS[h][k].update(blob2[h][k])
+                        elif k == "total":
+                            _PHOTO_STATS[h]["total"] = int(blob2[h].get("total", 0))
+            print("[v4.5] 已加载区域伤情统计")
+    except Exception as e:
+        print("[v4.5] 伤情统计加载失败：%s" % e)
+
+
+def _save_aux():
+    try:
+        os.makedirs(os.path.dirname(_FEEDBACK_FILE), exist_ok=True)
+        _atomic_write(_FEEDBACK_FILE, _FEEDBACK)
+        _atomic_write(_PHOTO_STATS_FILE, _PHOTO_STATS)
+    except Exception as e:
+        print("[v4.5] 反馈/统计保存失败：%s" % e)
+
+
+def _photo_count(acc, rules):
+    hid = acc.get("hospital")
+    if hid not in _PHOTO_STATS:
+        return None
+    st = _PHOTO_STATS[hid]
+    st["total"] += 1
+    w = (rules.get("mapped") or {}).get("wound")
+    if w:
+        st["wound"][w] = st["wound"].get(w, 0) + 1
+    for ins in (rules.get("mapped") or {}).get("insects") or []:
+        st["insect"][ins] = st["insect"].get(ins, 0) + 1
+    lv = rules.get("level")
+    if lv:
+        st["level"][lv] = st["level"].get(lv, 0) + 1
+    _save_aux()
+    return hid
+
+
+@app.route("/api/feedback", methods=["POST", "OPTIONS"])
+def api_feedback():
+    if request.method == "OPTIONS":
+        return ("", 204)
+    acc = _sess(request)
+    if not acc:
+        return _deny()
+    if acc.get("center"):
+        return jsonify({"ok": False, "error": "联邦中心账号不产生本地病例样本"}), 400
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"ok": False, "error": "请求体必须为 JSON 对象"}), 400
+    raw = data.get("symptoms", [])
+    if not isinstance(raw, list):
+        return jsonify({"ok": False, "error": "symptoms 必须为字符串数组"}), 400
+    symptoms = []
+    for s in raw:
+        if isinstance(s, str):
+            s = s.strip()
+            if s and s not in symptoms:
+                symptoms.append(s)
+    disease = data.get("disease")
+    action = data.get("action") or "adopt"
+    if not symptoms or not isinstance(disease, str) or not disease.strip():
+        return jsonify({"ok": False, "error": "缺少症状或疾病名"}), 400
+    if action not in ("adopt", "correct"):
+        return jsonify({"ok": False, "error": "action 仅支持 adopt / correct"}), 400
+    hit = q("SELECT id FROM diseases WHERE name=%s", disease.strip())
+    if not hit:
+        return jsonify({"ok": False, "error": "未知疾病名"}), 400
+    hid = acc["hospital"]
+    item = {"symptoms": symptoms, "disease": disease.strip(), "action": action, "ts": int(_time.time())}
+    _FEEDBACK.setdefault(hid, []).append(item)
+    if len(_FEEDBACK[hid]) > 500:
+        _FEEDBACK[hid] = _FEEDBACK[hid][-500:]
+    _FB_SINCE[hid] = _FB_SINCE.get(hid, 0) + 1
+    _save_aux()
+    if _feishu:
+        _feishu.notify_feedback(acc, item, len(_FEEDBACK[hid]))
+    return jsonify({"ok": True, "hospital": hid, "stored": len(_FEEDBACK[hid]),
+                    "note": "已沉淀为本地训练样本（数据不出院）"})
+
+
+@app.route("/api/feedback/summary")
+def api_feedback_summary():
+    acc = _sess(request)
+    if not acc:
+        return _deny()
+    return jsonify({
+        "ok": True,
+        "cumulative": {h: len(_FEEDBACK.get(h, [])) for h in _FL_HIDS},
+        "since_last_train": dict(_FB_SINCE),
+        "total": sum(len(_FEEDBACK.get(h, [])) for h in _FL_HIDS),
+    })
+
+
+@app.route("/api/photo/stats")
+def api_photo_stats():
+    acc = _sess(request)
+    if not acc:
+        return _deny()
+
+    def masked(counter):
+        shown = {k: v for k, v in counter.items() if v >= _K_ANON}
+        hidden = sum(1 for v in counter.values() if v < _K_ANON)
+        return {"shown": shown, "hidden_categories": hidden, "k": _K_ANON}
+
+    if acc.get("center"):
+        rows = []
+        agg = {"wound": {}, "insect": {}, "level": {}}
+        for h in _FL_HIDS:
+            st = _PHOTO_STATS[h]
+            rows.append({"hospital": h, "total": st["total"]})
+            for k in agg:
+                for name, v in st.get(k, {}).items():
+                    agg[k][name] = agg[k].get(name, 0) + v
+        return jsonify({"ok": True, "scope": "ALL",
+                        "per_hospital": rows,
+                        "aggregate": {k: masked(v) for k, v in agg.items()},
+                        "total": sum(_PHOTO_STATS[h]["total"] for h in _FL_HIDS)})
+    st = _PHOTO_STATS[acc["hospital"]]
+    return jsonify({"ok": True, "scope": acc["hospital"], "total": st["total"],
+                    "wound": masked(st["wound"]), "insect": masked(st["insect"]), "level": masked(st["level"])})
+
+
+@app.route("/api/fl/export")
+def api_fl_export():
+    acc = _sess(request)
+    if not acc:
+        return _deny()
+    blob = {
+        "exported_at": _ftime.strftime("%Y-%m-%d %H:%M:%S"),
+        "model": dict(_MODEL),
+        "last_result": _FL_LAST,
+        "feedback": {h: len(_FEEDBACK.get(h, [])) for h in _FL_HIDS},
+        "note": "联邦训练日志导出（合成演示数据 + 本地反馈样本）",
+    }
+    body = _fjson.dumps(blob, ensure_ascii=False, indent=1)
+    fn = "fed_training_log_%s.json" % _ftime.strftime("%Y%m%d_%H%M%S")
+    return app.response_class(
+        body, mimetype="application/json",
+        headers={"Content-Disposition": "attachment; filename=" + fn})
+
+def _fed_train(rounds=15, notify_acc=None):
+    """发起一轮联邦训练：聚合 → 版本 +1 → 下发（持久化）；并结算反馈样本计数"""
     result = _fed_run(rounds)
     global _FL_LAST
     _FL_LAST = result
@@ -823,29 +1319,43 @@ def _fed_train(rounds=15):
         "loss": result["final"]["loss"],
         "acc": result["final"]["acc"],
         "loss_base": result["history"][0]["loss"],
+        "holdout_acc": (result.get("holdout") or {}).get("acc"),
+        "holdout_n": (result.get("holdout") or {}).get("n"),
+        "feedback_total": sum(result.get("feedback_counts", {}).values()),
     })
     _save_model()
-    print("[联邦能力层] 全局模型 v%s 已下发（损失 %s → %s）" % (
-        _MODEL["version"], result["history"][0]["loss"], result["final"]["loss"]))
+    for h in _FL_HIDS:
+        _FB_SINCE[h] = 0
+    _save_aux()
+    print("[联邦能力层] 全局模型 v%s 已下发（损失 %s → %s；留出集准确率 %s%%）" % (
+        _MODEL["version"], result["history"][0]["loss"], result["final"]["loss"],
+        (result.get("holdout") or {}).get("acc")))
+    if _feishu and notify_acc is not None:
+        _feishu.notify_train(notify_acc, result, dict(_MODEL))
     return result
-
 
 @app.route("/api/fl/train", methods=["GET", "POST", "OPTIONS"])
 def api_fl_train():
     global _FL_LAST
     if request.method == "OPTIONS":
         return ("", 204)
+    acc = _sess(request)
+    if not acc:
+        return _deny()
     rounds = request.args.get("rounds", 15, type=int)
     rounds = max(1, min(30, rounds))
     if request.method == "POST":
-        return jsonify(_fed_train(rounds))
+        return jsonify(_fed_train(rounds, notify_acc=acc))
     if _FL_LAST is None:
-        _FL_LAST = _fed_train(rounds)
+        _FL_LAST = _fed_train(rounds, notify_acc=acc)
     return jsonify(_FL_LAST)
 
 
 @app.route("/api/fl/status")
 def api_fl_status():
+    acc = _sess(request)
+    if not acc:
+        return _deny()
     return jsonify({
         "ok": True,
         "trained": bool(_MODEL.get("w")),
@@ -859,11 +1369,16 @@ def api_fl_status():
         "acc": _MODEL.get("acc"),
         "hospitals": len(_FL_SPECS),
         "total_samples": sum(s[2] for s in _FL_SPECS),
+        "holdout_acc": _MODEL.get("holdout_acc"),
+        "holdout_n": _MODEL.get("holdout_n"),
+        "feedback_total": _MODEL.get("feedback_total"),
     })
 
 
 _load_model()
 _restore_last()
+_load_aux()
+_rusers_load()
 
 
 # ── 启动 ──
@@ -924,9 +1439,23 @@ def api_chat():
     if request.method == "OPTIONS":
         return ("", 204)
 
-    data = request.get_json(silent=True) or {}
-    question = (data.get("message") or "").strip()
-    history = data.get("history", [])[-6:]  # 最近6条消息作为记忆
+    acc = _sess(request)
+    if not acc:
+        return _deny()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"reply": "请求体必须为 JSON 对象"}), 400
+    q_raw = data.get("message")
+    if q_raw is not None and not isinstance(q_raw, str):
+        return jsonify({"reply": "message 必须为字符串"}), 400
+    question = (q_raw or "").strip()
+    h_raw = data.get("history", [])
+    if not isinstance(h_raw, list):
+        return jsonify({"reply": "history 必须为数组"}), 400
+    history = [
+        h for h in h_raw
+        if isinstance(h, dict) and h.get("role") in ("user", "assistant") and isinstance(h.get("content"), str)
+    ][-6:]  # 最近6条消息作为记忆
 
     if not question:
         return jsonify({"reply": "请输入您的问题"})
@@ -967,6 +1496,8 @@ def api_chat():
         result = resp.json()
         if resp.status_code == 200:
             answer = result["choices"][0]["message"]["content"]
+            if _feishu:
+                _feishu.notify_chat(acc, question, bool(knowledge))
             return jsonify({"reply": answer, "knowledge_hit": bool(knowledge)})
         else:
             err = result.get("message") or result.get("error", {}).get("message", "未知错误")
@@ -1158,7 +1689,12 @@ _PHOTO_CACHE = {}
 def api_photo_analyze():
     if request.method == "OPTIONS":
         return ("", 204)
-    data = request.get_json(silent=True) or {}
+    acc = _sess(request)
+    if not acc:
+        return _deny()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        data = {}
     img = data.get("image") or ""
     if not (isinstance(img, str) and img.startswith("data:image")):
         return jsonify({"ok": False, "error": "请提供图片（data:image/... base64 格式）"}), 400
@@ -1192,6 +1728,11 @@ def api_photo_analyze():
         "care": rules["care"], "meds": rules["meds"], "red_flags": rules["red_flags"],
         "insects": rules["insects"], "disclaimer": _PHOTO_DISCLAIMER,
     }
+    counted = _photo_count(acc, rules)  # 匿名计入本院统计（仅类别计数，照片不出院）
+    if _feishu:
+        _feishu.notify_photo(acc, rules, _PHOTO_STATS.get(counted, {}).get("total", 0) if counted else 0)
+    result["counted"] = bool(counted)
+    result["counted_hospital"] = counted
     _PHOTO_CACHE[ck] = result
     return jsonify(result)
 
@@ -1210,7 +1751,7 @@ def photo_sample(fn):
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("  联邦医院知识图谱AI — 后端已启动（v4.4 联邦融合版）")
+    print("  联邦医院知识图谱AI — 后端已启动（v4.7 应用台版）")
     print("  访问: http://localhost:5000")
     print("  API 列表:")
     print("    GET  /api/hospitals       — 医院列表")
@@ -1221,13 +1762,33 @@ if __name__ == "__main__":
     print("    GET  /api/cases           — 模拟病例")
     print("    GET  /api/stats           — 医院统计")
     print("    GET  /api/overview        — 全部概览")
-    print("    POST /api/login        — 登录（7 医院账号）")
+    print("    POST /api/login        — 登录（医院演示账号 / 自助注册）")
+    print("    POST /api/register     — 用户注册（自助开通）")
+    print("    GET  /app              — 应用台（新版界面 · 侧栏导航）")
     print("    POST /api/logout       — 退出登录")
     print("    GET  /api/me           — 会话查询")
     print("    GET  /api/fl/train     — 联邦训练结果（首次自动训练）")
     print("    POST /api/fl/train     — 联邦训练·再训一轮（真实 FedAvg）")
     print("    GET  /api/fl/status    — 联邦全局模型状态")
+    print("    GET  /api/fl/export    — 训练日志导出")
+    print("    POST /api/feedback     — 病例反馈（本地沉淀）")
+    print("    GET  /api/photo/stats  — 区域伤情统计（k-匿名）")
     print("    GET  /api/graph        — 知识图谱（?scope=local|fed）")
     print("    GET  /legacy           — 旧版页面（保留通道）")
     print("=" * 50)
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    _host = os.environ.get("HG_HOST", "127.0.0.1")
+    _port = int(os.environ.get("HG_PORT", "5000"))
+    _debug = os.environ.get("HG_DEBUG", "1") == "1"
+    if _host not in ("127.0.0.1", "localhost") and _debug:
+        print("  [安全提示] 已向局域网开放且调试模式开启，建议设置 HG_DEBUG=0")
+    if _host == "0.0.0.0":
+        try:
+            import socket as _sk
+            _s = _sk.socket(_sk.AF_INET, _sk.SOCK_DGRAM)
+            _s.connect(("10.255.255.255", 1))
+            _lan_ip = _s.getsockname()[0]
+            _s.close()
+            print("  [手机访问] 同一网络下访问: http://%s:%d" % (_lan_ip, _port))
+        except Exception:
+            print("  [手机访问] 使用 http://<电脑局域网IP>:%d" % _port)
+    app.run(host=_host, port=_port, debug=_debug)

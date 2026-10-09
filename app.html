@@ -1,0 +1,1189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0a1628">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="医院图谱AI">
+<title>联邦医院知识图谱 AI · 应用台</title>
+<!-- 应用台 v4.7 · 侧栏导航 + 登录注册 + 手机直达 · 2026-10-09 -->
+<style>
+:root{
+  --ink:#0a1628; --ink2:#0c1c34; --ink3:#0e2244;
+  --blue:#2563eb; --blue2:#5ea2ff; --blue3:#1d4ed8;
+  --cyan:#0891b2; --cyan2:#7fd8f0;
+  --lt:#f5f7fc; --bd:#e2e9f6;
+  --tx:#e8eefc; --txm:#93a7c9; --dkt:#16233c; --dkm:#5b6b84;
+  --ok:#0e9f6e; --err:#dc2626;
+  --ease:cubic-bezier(.22,1,.36,1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{background:var(--ink);color:var(--tx);font-family:'Segoe UI','Microsoft YaHei',sans-serif;-webkit-font-smoothing:antialiased}
+button,input,select{font-family:inherit}
+img,canvas{display:block}
+[hidden]{display:none!important}
+a{color:var(--blue2)}
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 22px;border-radius:10px;border:1px solid transparent;font-size:.86rem;font-weight:600;cursor:pointer;text-decoration:none;transition:all .25s var(--ease);letter-spacing:.02em;font-family:inherit}
+.btn.primary{background:var(--blue);color:#fff}
+.btn.primary:hover{background:var(--blue3);transform:translateY(-1px)}
+.btn.primary:active{transform:translateY(0)}
+.btn.ghost{border-color:rgba(160,190,240,.58);color:#e2ecff;background:rgba(10,20,40,.18)}
+.btn.ghost:hover{border-color:var(--blue2);color:#fff;background:rgba(94,162,255,.08)}
+.btn.ghost.dark{border-color:#c7d5ea;color:#3b4c6b}
+.btn.ghost.dark:hover{border-color:var(--blue);color:var(--blue);background:#f0f5ff}
+.btn.sm{padding:8px 16px;font-size:.78rem;border-radius:9px}
+.btn.lg{width:100%;padding:13px 22px;font-size:.92rem}
+.btn:disabled{opacity:.5;cursor:not-allowed}.toast{position:fixed;left:50%;bottom:36px;transform:translate(-50%,18px);background:#0e1c36;border:1px solid rgba(140,170,230,.4);color:var(--tx);padding:12px 22px;border-radius:99px;font-size:.8rem;opacity:0;pointer-events:none;transition:all .3s var(--ease);z-index:99;max-width:84vw;text-align:center;box-shadow:0 16px 44px rgba(2,8,20,.5)}
+.toast.show{opacity:1;transform:translate(-50%,0)}.mx-load{display:flex;align-items:center;gap:10px;color:var(--txm);padding:26px 6px}
+.mx-spin{width:16px;height:16px;border:2px solid rgba(94,162,255,.3);border-top-color:var(--blue2);border-radius:50%;animation:mxs 1s linear infinite;flex:none}
+@keyframes mxs{to{transform:rotate(360deg)}}
+.mx-note{color:var(--txm);margin-bottom:12px;line-height:1.85}
+.mx-err{color:#ff9d9d;background:rgba(220,38,38,.08);border:1px solid rgba(220,38,38,.32);border-radius:10px;padding:12px 14px;line-height:1.8}
+.mx-acts{display:flex;align-items:center;gap:10px;margin:14px 0;flex-wrap:wrap}
+.mx-mut{flex:1;color:var(--txm);font-size:.78rem;min-width:120px}
+/* —— 诊断 —— */
+.mx-cgrid{display:flex;flex-wrap:wrap;gap:8px;max-height:218px;overflow-y:auto;padding:4px 2px}
+.mx-chip{background:rgba(37,99,235,.12);border:1px solid rgba(94,162,255,.3);color:var(--tx);padding:6px 13px;border-radius:999px;cursor:pointer;font-size:.82rem;transition:all .15s}
+.mx-chip:hover{background:rgba(37,99,235,.3)}
+.mx-chip.on{background:var(--blue);border-color:var(--blue2);box-shadow:0 0 12px rgba(94,162,255,.45)}
+.mx-card{background:rgba(14,34,68,.55);border:1px solid rgba(94,162,255,.18);border-radius:14px;padding:14px 16px;margin-top:12px}
+.mx-ch{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.mx-cic{font-size:1.1rem}
+.mx-ch b{font-size:1rem}
+.mx-badge{font-size:.68rem;padding:2px 9px;border-radius:999px;border:1px solid}
+.mx-sv-危急{color:#ff9d9d;border-color:rgba(255,120,120,.5);background:rgba(220,38,38,.15)}
+.mx-sv-严重{color:#ffc38a;border-color:rgba(255,170,90,.45);background:rgba(217,119,6,.15)}
+.mx-sv-中度{color:#ffe08a;border-color:rgba(255,220,120,.4);background:rgba(202,138,4,.14)}
+.mx-sv-轻度{color:#9fe6c0;border-color:rgba(120,220,160,.4);background:rgba(14,159,110,.14)}
+.mx-cdept{color:var(--txm);font-size:.76rem}
+.mx-cscore{margin-left:auto;color:var(--blue2);font-weight:800;font-size:1.15rem}
+.mx-cscore i{font-size:.62rem;font-style:normal;color:var(--txm);margin-left:2px}
+.mx-bar{height:6px;background:rgba(94,162,255,.12);border-radius:4px;margin:10px 0 12px;overflow:hidden}
+.mx-bar i{display:block;height:100%;background:linear-gradient(90deg,var(--blue),var(--cyan2));border-radius:4px}
+.mx-meta{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.mx-meta section{background:rgba(8,18,36,.6);border:1px solid rgba(94,162,255,.12);border-radius:10px;padding:10px 12px}
+.mx-meta h5{font-size:.7rem;color:var(--cyan2);letter-spacing:.14em;margin-bottom:6px}
+.mx-meta p,.mx-meta li{font-size:.79rem;color:var(--txm);line-height:1.75}
+.mx-meta ul{padding-left:16px}
+/* —— 图谱 —— */
+.mx-gwrap{display:grid;grid-template-columns:206px 1fr;gap:14px}
+.mx-glist{display:flex;flex-direction:column;gap:7px;max-height:436px;overflow-y:auto;padding-right:2px}
+.mx-gitem{display:flex;align-items:center;gap:8px;background:rgba(14,34,68,.5);border:1px solid rgba(94,162,255,.14);border-radius:10px;padding:8px 11px;cursor:pointer;font-size:.82rem;color:var(--tx);transition:all .15s;text-align:left}
+.mx-gitem:hover{border-color:rgba(94,162,255,.45)}
+.mx-gitem.on{background:rgba(37,99,235,.25);border-color:var(--blue2)}
+.mx-gsv{margin-left:auto;font-size:.62rem;color:var(--txm);flex:none}
+.mx-svgbox{background:rgba(8,18,36,.55);border:1px solid rgba(94,162,255,.14);border-radius:14px;padding:6px}
+.mx-svg{width:100%;height:auto;display:block}
+.mx-legend{display:flex;gap:16px;justify-content:center;margin:6px 0 8px;font-size:.72rem;color:var(--txm);flex-wrap:wrap}
+.mx-legend i{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:5px}
+.mx-detail{margin-top:12px;display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.mx-detail section{background:rgba(8,18,36,.6);border:1px solid rgba(94,162,255,.12);border-radius:10px;padding:12px 14px}
+.mx-detail h5{font-size:.7rem;color:var(--cyan2);letter-spacing:.14em;margin-bottom:8px}
+.mx-detail p{font-size:.8rem;color:var(--txm);line-height:1.8}
+.mx-raterow{display:flex;align-items:center;gap:8px;font-size:.75rem;color:var(--txm);margin:5px 0}
+.mx-raterow b{width:44px;font-weight:500;flex:none}
+.mx-raterow span{width:46px;text-align:right;flex:none}
+.mx-ratebar{flex:1;height:5px;background:rgba(94,162,255,.12);border-radius:3px;overflow:hidden}
+.mx-ratebar i{display:block;height:100%;background:var(--cyan2)}
+/* —— 联邦 —— */
+.mx-flcards{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:12px 0}
+.mx-flcard{background:rgba(8,18,36,.6);border:1px solid rgba(94,162,255,.14);border-radius:12px;padding:11px 13px}
+.mx-flcard b{font-size:.82rem;display:block;margin-bottom:6px}
+.mx-flcard .mx-mut{font-size:.73rem;display:block;line-height:1.7}
+.mx-flcard.mx-hl{border-color:rgba(94,162,255,.55);box-shadow:0 0 18px rgba(37,99,235,.25)}
+.mx-canvas{width:100%;height:320px;display:block;background:rgba(8,18,36,.55);border:1px solid rgba(94,162,255,.14);border-radius:14px}
+/* —— 问答 —— */
+.mx-chat{display:flex;flex-direction:column;height:min(56vh,480px)}
+.mx-chlog{flex:1;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding:6px 2px 12px}
+.mx-msg{max-width:82%;padding:10px 14px;border-radius:14px;font-size:.85rem;line-height:1.78;white-space:pre-wrap;word-break:break-word}
+.mx-msg.u{align-self:flex-end;background:var(--blue);color:#fff;border-bottom-right-radius:4px}
+.mx-msg.a{align-self:flex-start;background:rgba(14,34,68,.85);border:1px solid rgba(94,162,255,.18);border-bottom-left-radius:4px}
+.mx-msg.mx-wait{color:var(--txm)}
+.mx-inrow{display:flex;gap:10px}
+.mx-inrow input{flex:1;background:rgba(8,18,36,.8);border:1px solid rgba(94,162,255,.25);border-radius:12px;padding:11px 14px;color:var(--tx);outline:none;font-size:.88rem;font-family:inherit}
+.mx-inrow input:focus{border-color:var(--blue2)}
+.mx-hints{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+@media (max-width:760px){.mx-gwrap{grid-template-columns:1fr}.mx-detail{grid-template-columns:1fr}.mx-bd{padding:14px 13px}.mx-ovl{padding:10px}.mx-box{max-height:92vh}.mx-meta{grid-template-columns:1fr}}
+@media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+/* ---------- v4.3 拍照分析 ---------- */
+.mx-drop{display:flex;flex-direction:column;align-items:center;gap:6px;border:1.5px dashed rgba(94,162,255,.4);border-radius:14px;padding:26px 16px;cursor:pointer;color:var(--txm);text-align:center;transition:border-color .15s,background .15s}
+.mx-drop:hover{border-color:var(--blue2);background:rgba(37,99,235,.06)}
+.mx-drop-ic{font-size:1.7rem;line-height:1}
+.mx-phprev{margin:12px 0;text-align:center}
+.mx-phprev img{max-width:100%;max-height:280px;border-radius:12px;border:1px solid rgba(94,162,255,.25)}
+.mx-lv{padding:10px 14px;border-radius:10px;margin:12px 0;font-weight:600;font-size:.88rem;line-height:1.7}
+.mx-lv-1{background:rgba(14,159,110,.13);border:1px solid rgba(120,220,160,.4);color:#9fe6c0}
+.mx-lv-2{background:rgba(217,119,6,.14);border:1px solid rgba(255,170,90,.45);color:#ffc38a}
+.mx-lv-3{background:rgba(220,38,38,.14);border:1px solid rgba(255,120,120,.5);color:#ff9d9d}
+.mx-flags-card h5{font-size:.72rem;color:#ffb4b4;letter-spacing:.08em;margin-bottom:6px}
+.mx-flags{padding-left:16px}
+.mx-flags li{color:#ffc9c9;font-size:.79rem;line-height:1.7}
+/* ---------- v4.4 联邦融合（双视图 · 模型徽章 · 训练台） ---------- */
+.mx-scope{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 12px}
+.mx-scope .mx-mut{flex:none}
+.mx-sbtn{background:rgba(37,99,235,.12);border:1px solid rgba(94,162,255,.3);color:var(--tx);padding:5px 13px;border-radius:999px;cursor:pointer;font-size:.78rem;font-family:inherit;transition:all .15s}
+.mx-sbtn:hover{background:rgba(37,99,235,.28)}
+.mx-sbtn.on{background:var(--blue);border-color:var(--blue2);box-shadow:0 0 12px rgba(94,162,255,.45)}
+.mx-badge.mx-model{color:#9cc8ff;border-color:rgba(94,162,255,.5);background:rgba(37,99,235,.16)}
+.mx-badge.mx-fednew{color:#7fd8f0;border-color:rgba(127,216,240,.5);background:rgba(127,216,240,.12)}
+.mx-based{margin-left:8px;font-style:normal;font-size:.68rem;color:var(--txm);font-weight:500}
+.mx-flstat{background:rgba(8,18,36,.6);border:1px solid rgba(94,162,255,.14);border-radius:10px;padding:10px 14px;margin:10px 0;font-size:.78rem;color:var(--txm);line-height:1.8}
+.mx-flstat b{color:var(--blue2)}
+/* ---------- v4.5 加固与扩量 ---------- */
+.mx-fbrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed rgba(94,162,255,.18)}
+.mx-fbsel{background:rgba(8,18,36,.8);border:1px solid rgba(94,162,255,.25);border-radius:8px;color:var(--tx);padding:4px 8px;font-size:.76rem;font-family:inherit}
+.mx-conf{margin-top:10px}
+.mx-confbox{overflow:auto;max-height:300px;border:1px solid rgba(94,162,255,.14);border-radius:8px;padding:6px}
+.mx-confbox table{border-collapse:collapse;font-size:.62rem}
+.mx-confbox th,.mx-confbox td{border:1px solid rgba(94,162,255,.14);padding:2px 4px;text-align:center;color:var(--txm)}
+.mx-mini{width:100%;border-collapse:collapse;font-size:.7rem}
+.mx-mini th,.mx-mini td{border:1px solid rgba(94,162,255,.14);padding:3px 6px;text-align:left;color:var(--txm)}
+.fed-note{font-size:.72rem;color:var(--txm);text-align:center;margin-top:6px}
+/* ---------- 应用台外壳 ---------- */
+.app-shell{display:flex;height:100vh;height:100dvh;overflow:hidden;background:var(--ink)}
+.side{width:248px;flex:none;display:flex;flex-direction:column;background:linear-gradient(180deg,#0b1a31,#081324);border-right:1px solid rgba(94,162,255,.14);padding:16px 12px 12px}
+.side-brand{display:flex;align-items:center;gap:9px;padding:4px 8px 12px;color:var(--tx);font-weight:800;font-size:.9rem;letter-spacing:.03em;white-space:nowrap}
+.side-brand i{width:10px;height:10px;border:2.5px solid var(--blue2);transform:rotate(45deg);display:inline-block;flex:none}
+.side-user{display:flex;align-items:center;gap:10px;padding:10px;margin:0 0 12px;border:1px solid rgba(94,162,255,.16);background:rgba(14,34,68,.5);border-radius:12px;min-width:0}
+.side-user .av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--cyan));display:flex;align-items:center;justify-content:center;font-weight:700;font-size:.9rem;color:#fff;flex:none}
+.side-user .nm{font-size:.82rem;font-weight:600;line-height:1.3;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.side-user .rl{font-size:.66rem;color:var(--txm);margin-top:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.side-nav{display:flex;flex-direction:column;gap:4px;flex:1;overflow-y:auto;min-height:0}
+.navi{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:11px;border:1px solid transparent;background:none;color:#a9bfe2;font-size:.86rem;cursor:pointer;text-align:left;transition:all .18s;width:100%}
+.navi svg{width:18px;height:18px;flex:none}
+.navi:hover{background:rgba(94,162,255,.08);color:#fff}
+.navi.on{background:rgba(37,99,235,.2);border-color:rgba(94,162,255,.35);color:#fff}
+.side-foot{border-top:1px solid rgba(94,162,255,.14);padding-top:10px;margin-top:8px;display:flex;flex-direction:column;gap:8px}
+.side-out{border:1px solid rgba(160,190,240,.4);background:rgba(10,20,40,.25);color:#dbe7ff;border-radius:10px;padding:9px 12px;font-size:.8rem;cursor:pointer;transition:all .2s}
+.side-out:hover{border-color:var(--blue2);color:#fff}
+.side-back{font-size:.72rem;color:#7d92b8;text-decoration:none;text-align:center;padding:4px 0}
+.side-back:hover{color:#fff}
+.main{flex:1;display:flex;flex-direction:column;min-width:0}
+.topbar{height:58px;flex:none;display:flex;align-items:center;gap:12px;padding:0 18px;border-bottom:1px solid rgba(94,162,255,.12);background:rgba(8,17,32,.85)}
+.menu-btn{display:none;width:38px;height:38px;border-radius:10px;border:1px solid rgba(94,162,255,.3);background:none;color:var(--blue2);cursor:pointer;align-items:center;justify-content:center;flex:none}
+.menu-btn svg{width:18px;height:18px}
+.tb-tt{display:flex;flex-direction:column;gap:1px;min-width:0}
+.tb-tt h2{font-size:.95rem;font-weight:800;letter-spacing:.02em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tb-tt span{font-size:.7rem;color:var(--txm);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tb-right{margin-left:auto;display:flex;align-items:center;gap:10px}
+.mbadge{font-size:.7rem;color:#9cc8ff;border:1px solid rgba(94,162,255,.5);background:rgba(37,99,235,.16);border-radius:999px;padding:4px 11px;white-space:nowrap}
+.mbadge:empty{display:none}
+.uchip{font-size:.72rem;color:#d5e2fb;border:1px solid rgba(94,162,255,.3);border-radius:999px;padding:5px 12px;background:rgba(14,34,68,.6);max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.main-body{flex:1;overflow-y:auto;overflow-x:hidden;min-height:0}
+#viewHost{max-width:1080px;margin:0 auto;padding:22px 22px 80px}
+#viewHost .mx-chat{height:calc(100vh - 250px);height:calc(100dvh - 250px);min-height:300px;max-height:660px}
+#viewHost .mx-canvas{height:340px}
+.side-mask{display:none}
+@media(max-width:860px){
+  .side{position:fixed;left:0;top:0;bottom:0;z-index:120;transform:translateX(-104%);transition:transform .25s var(--ease);box-shadow:24px 0 60px rgba(2,8,20,.55);width:264px}
+  .side.open{transform:none}
+  .side-mask{display:block;position:fixed;inset:0;z-index:110;background:rgba(4,10,22,.62);opacity:0;pointer-events:none;transition:opacity .25s}
+  .side-mask.show{opacity:1;pointer-events:auto}
+  .menu-btn{display:inline-flex}
+  .tb-right .uchip{display:none}
+  #viewHost{padding:14px 12px 84px}
+  .topbar{padding:0 12px}
+  #viewHost .mx-chat{height:calc(100dvh - 215px);min-height:280px}
+}
+
+/* ---------- 概览 ---------- */
+.home-hero{background:linear-gradient(135deg,rgba(37,99,235,.18),rgba(8,145,178,.1)),rgba(14,34,68,.4);border:1px solid rgba(94,162,255,.2);border-radius:18px;padding:26px;margin-bottom:18px}
+.home-hero h3{font-size:1.25rem;font-weight:800;letter-spacing:.02em}
+.home-hero p{color:var(--txm);font-size:.82rem;margin-top:8px;line-height:1.85}
+.home-chips{display:flex;gap:8px;flex-wrap:wrap;margin-top:14px}
+.home-chips:empty{margin-top:0}
+.hchip{font-size:.72rem;color:#9cc8ff;border:1px solid rgba(94,162,255,.35);background:rgba(37,99,235,.12);border-radius:999px;padding:5px 12px}
+.home-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px}
+.hcard{background:rgba(14,34,68,.5);border:1px solid rgba(94,162,255,.16);border-radius:16px;padding:18px;display:flex;flex-direction:column;gap:8px;cursor:pointer;transition:all .2s var(--ease);text-align:left;color:var(--tx)}
+.hcard:hover{border-color:rgba(94,162,255,.5);transform:translateY(-2px)}
+.hcard .ic{width:30px;height:30px;color:var(--blue2)}
+.hcard b{font-size:.92rem}
+.hcard span{font-size:.76rem;color:var(--txm);line-height:1.75;flex:1}
+.hcard em{font-style:normal;font-size:.74rem;color:var(--blue2)}
+
+/* ---------- 登录 / 注册 ---------- */
+.auth-wrap{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:20px;overflow-y:auto;background:radial-gradient(1200px 600px at 72% -10%,rgba(37,99,235,.22),transparent),radial-gradient(900px 500px at 8% 110%,rgba(8,145,178,.15),transparent),var(--ink)}
+.auth-card{width:min(420px,100%);background:linear-gradient(180deg,#0d1e38,#0a1628);border:1px solid rgba(94,162,255,.24);border-radius:20px;padding:34px 30px 24px;box-shadow:0 30px 80px rgba(0,0,0,.5);margin:auto}
+.auth-logo{width:46px;height:46px;margin:0 auto 14px;border-radius:13px;background:linear-gradient(135deg,var(--blue),var(--cyan));display:flex;align-items:center;justify-content:center}
+.auth-logo i{width:14px;height:14px;border:2.5px solid #fff;transform:rotate(45deg);display:block}
+.auth-card h1{font-size:1.12rem;text-align:center;letter-spacing:.04em}
+.auth-sub{text-align:center;color:var(--txm);font-size:.74rem;margin-top:7px;letter-spacing:.1em}
+.auth-tabs{display:flex;background:rgba(8,18,36,.7);border:1px solid rgba(94,162,255,.18);border-radius:12px;padding:4px;margin:20px 0 18px}
+.auth-tab{flex:1;padding:9px 0;border:none;background:none;color:var(--txm);font-size:.84rem;border-radius:9px;cursor:pointer;transition:all .2s}
+.auth-tab.on{background:rgba(37,99,235,.85);color:#fff;font-weight:600}
+.fld{display:block;margin-bottom:13px;font-size:.76rem;color:#9fb3d9;font-weight:600}
+.fld input,.fld select{display:block;width:100%;margin-top:7px;padding:11px 13px;border:1.5px solid rgba(94,162,255,.22);border-radius:10px;background:rgba(8,18,36,.8);color:var(--tx);font-size:.88rem;outline:none;transition:all .2s;font-weight:400}
+.fld input:focus,.fld select:focus{border-color:var(--blue2);box-shadow:0 0 0 3px rgba(37,99,235,.18)}
+.fld select option{background:#0c1c34;color:var(--tx)}
+.auth-err{min-height:18px;font-size:.74rem;color:#ff9d9d;margin:2px 0 10px}
+.demo-box{margin-top:16px;border-top:1px dashed rgba(94,162,255,.2);padding-top:12px;font-size:.75rem;color:var(--txm)}
+.demo-box summary{cursor:pointer;color:#9fb3d9}
+.demo-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.dchip{font-size:.72rem;padding:6px 11px;border-radius:99px;border:1px solid rgba(94,162,255,.3);background:rgba(37,99,235,.1);color:#cfe0ff;cursor:pointer;transition:all .2s}
+.dchip:hover{border-color:var(--blue2);background:rgba(37,99,235,.24)}
+
+</style>
+</head>
+
+<body>
+
+<!-- ================= 登录 / 注册 ================= -->
+<div class="auth-wrap" id="authScreen">
+  <div class="auth-card">
+    <div class="auth-logo"><i></i></div>
+    <h1>联邦医院知识图谱 AI</h1>
+    <p class="auth-sub">多院协同智能服务 · 应用台</p>
+    <div class="auth-tabs">
+      <button class="auth-tab on" data-tab="login" type="button">登录</button>
+      <button class="auth-tab" data-tab="reg" type="button">注册</button>
+    </div>
+    <form id="loginForm" novalidate>
+      <label class="fld">用户名<input id="lu" autocomplete="username" placeholder="如：demo（演示用户）"></label>
+      <label class="fld">密码<input id="lp" type="password" autocomplete="current-password" placeholder="演示密码：demo2026"></label>
+      <div class="auth-err" id="lErr" role="alert"></div>
+      <button class="btn primary lg" type="submit" id="lBtn">登 录</button>
+    </form>
+    <form id="regForm" novalidate hidden>
+      <label class="fld">用户名<input id="ru" autocomplete="username" placeholder="3–20 位字母 / 数字 / 下划线"></label>
+      <label class="fld">昵称（可选）<input id="rn" autocomplete="nickname" placeholder="如：张医生 / 社区居民"></label>
+      <label class="fld">所属院区
+        <select id="rh">
+          <option value="A">中心医院</option>
+          <option value="B">市第一人民医院</option>
+          <option value="C">附属第三医院</option>
+          <option value="D">省第二人民医院</option>
+          <option value="E">妇幼保健院</option>
+          <option value="F">开发区医院</option>
+        </select>
+      </label>
+      <label class="fld">密码<input id="rp" type="password" autocomplete="new-password" placeholder="至少 6 位"></label>
+      <label class="fld">确认密码<input id="rp2" type="password" autocomplete="new-password" placeholder="再次输入密码"></label>
+      <div class="auth-err" id="rErr" role="alert"></div>
+      <button class="btn primary lg" type="submit" id="rBtn">注 册 并 进 入</button>
+    </form>
+    <details class="demo-box">
+      <summary>演示账号（点击一键填入 · 密码 demo2026）</summary>
+      <div class="demo-chips">
+        <button class="dchip" data-u="demo" type="button">演示用户</button>
+        <button class="dchip" data-u="zhongxin" type="button">中心医院</button>
+        <button class="dchip" data-u="diyi" type="button">市第一人民医院</button>
+        <button class="dchip" data-u="fusan" type="button">附属第三医院</button>
+        <button class="dchip" data-u="sheng2" type="button">省第二人民医院</button>
+        <button class="dchip" data-u="fuyou" type="button">妇幼保健院</button>
+        <button class="dchip" data-u="kaifa" type="button">开发区医院</button>
+        <button class="dchip" data-u="fcenter" type="button">联邦中心</button>
+      </div>
+    </details>
+  </div>
+</div>
+
+<!-- ================= 应用台 ================= -->
+<div class="app-shell" id="appShell" hidden>
+  <aside class="side" id="side">
+    <div class="side-brand"><i></i>联邦医院知识图谱 AI</div>
+    <div class="side-user">
+      <div class="av" id="sideAv">·</div>
+      <div style="min-width:0"><div class="nm" id="sideNm">—</div><div class="rl" id="sideRl">—</div></div>
+    </div>
+    <nav class="side-nav">
+      <button class="navi" data-v="home" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5 12 4l8 6.5"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/></svg>概览</button>
+      <button class="navi" data-v="diag" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h5"/><path d="M8 17l2-2 1.6 1.6L15.5 13"/></svg>AI 辅助诊断</button>
+      <button class="navi" data-v="graph" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="6" r="2.4"/><circle cx="6" cy="17" r="2.4"/><circle cx="18" cy="17" r="2.4"/><path d="M10.8 8.1L7.2 14.9M13.2 8.1l3.6 6.8M8.4 17h7.2"/></svg>知识图谱</button>
+      <button class="navi" data-v="fl" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.6"/><circle cx="5" cy="6" r="1.7"/><circle cx="19" cy="6" r="1.7"/><circle cx="5" cy="18" r="1.7"/><circle cx="19" cy="18" r="1.7"/><path d="M6.4 7.1l3.7 3.3M17.6 7.1l-3.7 3.3M6.4 16.9l3.7-3.3M17.6 16.9l-3.7-3.3"/></svg>联邦训练</button>
+      <button class="navi" data-v="chat" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5z"/><path d="M9 11h.01M12.5 11h.01M16 11h.01"/></svg>AI 医疗问答</button>
+      <button class="navi" data-v="photo" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2.2"/><circle cx="12" cy="13.4" r="3.6"/><path d="M8.6 7l1.3-2.2h4.2L15.4 7"/></svg>拍照分析</button>
+    </nav>
+    <div class="side-foot">
+      <button class="side-out" id="logoutBtn" type="button">退出登录</button>
+      <a class="side-back" href="/?desktop=1">← 返回平台首页</a>
+    </div>
+  </aside>
+  <div class="side-mask" id="sideMask"></div>
+  <main class="main">
+    <header class="topbar">
+      <button class="menu-btn" id="menuBtn" type="button" aria-label="打开菜单"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button>
+      <div class="tb-tt"><h2 id="vTitle">概览</h2><span id="vSub"></span></div>
+      <div class="tb-right"><span class="mbadge" id="modelBadge"></span><span class="uchip" id="userChip">—</span></div>
+    </header>
+    <div class="main-body"><div id="viewHost"></div></div>
+  </main>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+(function(){
+"use strict";
+var RM = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+var QS = function(s, el){ return (el||document).querySelector(s); };
+var QSA = function(s, el){ return Array.prototype.slice.call((el||document).querySelectorAll(s)); };
+var q = new URLSearchParams(location.search || '');
+
+/* ---------- toast ---------- */
+var toastEl = QS('#toast'), toastT = null;
+function toast(msg){ if(!toastEl) return; toastEl.textContent = msg; toastEl.classList.add('show');
+  clearTimeout(toastT); toastT = setTimeout(function(){ toastEl.classList.remove('show'); }, 2600); }
+
+
+var HGX = { hospital: 'A', user: '', name: '', isCenter: false };
+var HGX_CACHE = { symptoms: null, graph: null, diseases: null, fl: null };
+
+function hgxTok(){
+  try{ return localStorage.getItem('hg_token') || sessionStorage.getItem('hg_token') || ''; }catch(e){ return ''; }
+}
+function hgxH(json){
+  var h = {};
+  if(json){ h['Content-Type'] = 'application/json'; }
+  var tk = hgxTok();
+  if(tk){ h['X-Token'] = tk; }
+  return h;
+}
+function hgxGet(p){
+  return fetch(p, { headers: hgxH(false) }).then(function(r){
+    if(r.status === 401){ throw new Error('会话已失效，请重新登录后再试'); }
+    if(!r.ok){ throw new Error('HTTP ' + r.status); }
+    return r.json();
+  });
+}
+function hgxPost(p, body){
+  return fetch(p, { method: 'POST', headers: hgxH(true), body: JSON.stringify(body) })
+    .then(function(r){ return r.json().then(function(d){ return { status: r.status, ok: r.ok, data: d }; }); });
+}
+function hgxEsc(t){
+  return String(t == null ? '' : t)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function hgxCache(key, url){
+  if(HGX_CACHE[key]){ return Promise.resolve(HGX_CACHE[key]); }
+  return hgxGet(url).then(function(d){ HGX_CACHE[key] = d; return d; });
+}
+
+
+/* —— ① AI 辅助诊断（/api/symptoms + /api/diagnose · 接入联邦全局模型） —— */
+var mxPicked = [];
+var mxModelSel = 'global';
+function mxFeedback(disease, action, el){
+  hgxPost('/api/feedback', { symptoms: mxPicked.slice(), disease: disease, action: action }).then(function(r){
+    if(r.ok && r.data && r.data.ok){
+      toast((action === 'adopt' ? '已采纳并沉淀' : '已修正并沉淀') + ' · 本地样本 ' + r.data.stored + ' 条（数据不出院）');
+      if(el){ try{ el.disabled = true; }catch(e){} }
+    } else {
+      toast((r.data && r.data.error) || '提交失败');
+    }
+  }).catch(function(){ toast('提交失败：请确认登录状态'); });
+}
+function mxOpenDiag(){
+  mxPicked = [];
+  enterView('AI 辅助诊断', '身份：' + HGX.name);
+  Promise.all([
+    hgxCache('symptoms', '/api/symptoms'),
+    hgxGet('/api/fl/status').catch(function(){ return null; })
+  ]).then(function(out){
+    var list = out[0], st = out[1] || {};
+    if(st && st.trained){ HGX_CACHE.flstatus = st; }
+    vSub.textContent = '身份：' + HGX.name + ' · 推理模型：' + (st.trained ? ('联邦全局 v' + st.version) : '基础版（未训练）');
+    var h = [];
+    h.push('<p class="mx-note">点选症状（可多选）→ 点击「开始推理」，查看鉴别诊断排名。推理模型由联邦训练提供（六院联合），可切换「基础版」对比。本工具仅供教学演示，不构成医疗建议。</p>');
+    h.push('<div class="mx-scope"><span class="mx-mut">推理模型：</span>' +
+      '<button type="button" class="mx-sbtn' + (mxModelSel === 'global' ? ' on' : '') + '" id="mxMGlobal">联邦全局' + (st.trained ? '（v' + st.version + '）' : '') + '</button>' +
+      '<button type="button" class="mx-sbtn' + (mxModelSel === 'baseline' ? ' on' : '') + '" id="mxMBase">基础版</button>' +
+      '<span class="mx-mut">' + (st.trained ? ('6 院联合 · ' + st.params + ' 参数 · 损失 ' + st.loss) : '未训练：先到「联邦训练」发起一轮') + '</span></div>');
+    h.push('<div class="mx-cgrid">');
+    for(var i = 0; i < list.length; i++){
+      h.push('<button type="button" class="mx-chip" data-s="' + hgxEsc(list[i]) + '">' + hgxEsc(list[i]) + '</button>');
+    }
+    h.push('</div>');
+    h.push('<div class="mx-acts"><span class="mx-mut" id="mxCnt">已选 0 项</span>' +
+           '<button class="btn primary sm" id="mxGo" type="button">开始推理</button>' +
+           '<button class="btn ghost dark sm" id="mxClr" type="button">清空</button></div>');
+    h.push('<div id="mxRes"></div>');
+    viewHost.innerHTML = h.join('');
+    var chips = viewHost.querySelectorAll('.mx-chip');
+    Array.prototype.forEach.call(chips, function(c){
+      c.addEventListener('click', function(){
+        var sv = c.getAttribute('data-s'), k = mxPicked.indexOf(sv);
+        if(k >= 0){ mxPicked.splice(k, 1); c.classList.remove('on'); } else { mxPicked.push(sv); c.classList.add('on'); }
+        QS('#mxCnt').textContent = '已选 ' + mxPicked.length + ' 项';
+      });
+    });
+    function paintModel(){
+      if(QS('#mxMGlobal')){ QS('#mxMGlobal').classList.toggle('on', mxModelSel === 'global'); }
+      if(QS('#mxMBase')){ QS('#mxMBase').classList.toggle('on', mxModelSel === 'baseline'); }
+    }
+    if(QS('#mxMGlobal')){ QS('#mxMGlobal').addEventListener('click', function(){ mxModelSel = 'global'; paintModel(); }); }
+    if(QS('#mxMBase')){ QS('#mxMBase').addEventListener('click', function(){ mxModelSel = 'baseline'; paintModel(); }); }
+    QS('#mxClr').addEventListener('click', function(){
+      mxPicked = [];
+      Array.prototype.forEach.call(chips, function(c){ c.classList.remove('on'); });
+      QS('#mxCnt').textContent = '已选 0 项'; QS('#mxRes').innerHTML = '';
+    });
+    var autoPick = q.get('pick');
+    if(autoPick){
+      Array.prototype.forEach.call(chips, function(c){
+        var pv = c.getAttribute('data-s');
+        if(autoPick.indexOf(pv) >= 0 && mxPicked.indexOf(pv) < 0){ mxPicked.push(pv); c.classList.add('on'); }
+      });
+      QS('#mxCnt').textContent = '已选 ' + mxPicked.length + ' 项';
+      if(q.get('autorun') === '1'){ setTimeout(function(){ QS('#mxGo').click(); }, 400); }
+    }
+    QS('#mxGo').addEventListener('click', function(){
+      if(!mxPicked.length){ toast('请先点选至少一个症状'); return; }
+      var res = QS('#mxRes');
+      res.innerHTML = '<div class="mx-load"><span class="mx-spin"></span> 推理中…</div>';
+      hgxPost('/api/diagnose', { symptoms: mxPicked, hospital_id: HGX.hospital, model: mxModelSel }).then(function(r){
+        if(!r.ok){ throw new Error('HTTP ' + r.status); }
+        var arr = r.data;
+        if(!arr || !arr.length){ res.innerHTML = '<p class="mx-note">未匹配到相关疾病，请增加或更换症状后重试。</p>'; return; }
+        var h2 = [];
+        for(var k = 0; k < arr.length; k++){
+          var d = arr[k], prev = d.prevention || [];
+          h2.push('<div class="mx-card">');
+          h2.push('<div class="mx-ch"><span class="mx-cic">' + hgxEsc(d.icon || '·') + '</span><b>' + hgxEsc(d.disease) + '</b>' +
+                  '<span class="mx-badge mx-sv-' + hgxEsc(d.severity) + '">' + hgxEsc(d.severity) + '</span>' +
+                  (d.model_ver ? '<span class="mx-badge mx-model">全局 v' + d.model_ver + '</span>' : '') +
+                  '<span class="mx-cdept">' + hgxEsc(d.dept) + ' · 命中 ' + d.matched + '/' + d.total + ' 症状</span>' +
+                  '<span class="mx-cscore">' + d.score + '<i>分</i>' + (d.score_base != null ? '<em class="mx-based">基础版 ' + d.score_base + '</em>' : '') + '</span></div>');
+          h2.push('<div class="mx-bar"><i style="width:' + Math.max(2, Math.min(100, d.score)) + '%"></i></div>');
+          h2.push('<div class="mx-meta">');
+          h2.push('<section><h5>推荐检查</h5><p>' + hgxEsc((d.tests || []).join('、') || '—') + '</p></section>');
+          h2.push('<section><h5>常用药物</h5><p>' + hgxEsc((d.drugs || []).join('、') || '—') + '</p></section>');
+          h2.push('<section><h5>病因</h5><p>' + hgxEsc((d.cause || '—')).slice(0, 150) + '</p></section>');
+          h2.push('<section><h5>预防建议</h5><ul>');
+          for(var p2 = 0; p2 < Math.min(4, prev.length); p2++){ h2.push('<li>' + hgxEsc(prev[p2]) + '</li>'); }
+          if(!prev.length){ h2.push('<li>—</li>'); }
+          h2.push('</ul></section>');
+          var otherOpts = '';
+          for(var oi = 0; oi < arr.length; oi++){ if(arr[oi].disease !== d.disease){ otherOpts += '<option value="' + hgxEsc(arr[oi].disease) + '">' + hgxEsc(arr[oi].disease) + '</option>'; } }
+          h2.push('<div class="mx-fbrow"><span class="mx-mut">这例诊断准不准？</span>' +
+                  '<button type="button" class="btn ghost dark sm mx-fb-adopt" data-d="' + hgxEsc(d.disease) + '">采纳此诊断</button>' +
+                  '<select class="mx-fbsel" data-d="' + hgxEsc(d.disease) + '"><option value="">修正为…</option>' + otherOpts + '</select></div>');
+          h2.push('</div></div>');
+        }
+        res.innerHTML = h2.join('');
+        Array.prototype.forEach.call(res.querySelectorAll('.mx-fb-adopt'), function(b2){
+          b2.addEventListener('click', function(){ mxFeedback(b2.getAttribute('data-d'), 'adopt', b2); });
+        });
+        Array.prototype.forEach.call(res.querySelectorAll('.mx-fbsel'), function(sel){
+          sel.addEventListener('change', function(){ if(sel.value){ mxFeedback(sel.value, 'correct', sel); sel.value = ''; } });
+        });
+      }).catch(function(err){
+        res.innerHTML = '<p class="mx-err">推理失败：' + hgxEsc(err && err.message || err) + '（请确认后端服务正常后重试）</p>';
+      });
+    });
+  }).catch(function(){ viewHost.innerHTML = '<p class="mx-err">症状数据加载失败，请稍后重试。</p>'; });
+}
+
+
+/* —— ② 知识图谱（/api/graph · 本院视图 / 联邦聚合视图） —— */
+var mxGScope = 'local';
+var mxGCur = 0;
+function mxOpenGraph(){
+  enterView('知识图谱', '本院视图 / 联邦聚合视图 · 点击左侧疾病查看关联网络');
+  var hq = HGX.hospital, sc = (hq === 'ALL') ? 'fed' : (q.get('gscope') || mxGScope);
+  Promise.all([
+    hgxGet('/api/graph?scope=local&hospital=' + encodeURIComponent(hq)),
+    hgxGet('/api/graph?scope=fed'),
+    hgxCache('diseases', '/api/diseases')
+  ]).then(function(out){
+    HGX_CACHE.graphLoc = out[0];
+    HGX_CACHE.graphFed = out[1];
+    var dis = out[2];
+    mxGScope = sc;
+    vSub.textContent = dis.length + ' 类疾病 · 本院视图 / 联邦聚合视图 · 点击左侧疾病查看关联网络';
+    var ln = out[0].meta ? out[0].meta.edges_in_view : (out[0].edges || []).length;
+    var fn = out[1].meta ? out[1].meta.edges_in_view : (out[1].edges || []).length;
+    var add = 0, i;
+    for(i = 0; i < (out[1].edges || []).length; i++){
+      var e1 = out[1].edges[i];
+      if(!(e1.hospitals && e1.hospitals[hq])){ add++; }
+    }
+    if(hq === 'ALL'){ add = 0; }
+    var h = [];
+    h.push('<div class="mx-scope">');
+    h.push('<span class="mx-mut">视图：</span>');
+    if(hq !== 'ALL'){
+      h.push('<button type="button" class="mx-sbtn' + (sc === 'local' ? ' on' : '') + '" id="mxGS-L">本院视图（' + hgxEsc(hq) + ' 院）</button>');
+      h.push('<button type="button" class="mx-sbtn' + (sc === 'fed' ? ' on' : '') + '" id="mxGS-F">联邦聚合视图</button>');
+      h.push('<span class="mx-mut">全图关联：本院 ' + ln + ' 条 / 联邦聚合 ' + fn + ' 条（+' + add + ' 条来自其他院）· 贡献数据为演示示意口径</span>');
+    } else {
+      h.push('<span class="mx-mut">全图关联：联邦聚合 ' + fn + ' 条 · 聚合自 6 院 · 贡献数据为演示示意口径</span>');
+    }
+    h.push('</div>');
+    h.push('<div class="mx-gwrap"><div class="mx-glist" id="mxGList">');
+    for(var j = 0; j < dis.length; j++){
+      h.push('<button type="button" class="mx-gitem" data-i="' + j + '"><span class="mx-cic">' + hgxEsc(dis[j].icon || '·') + '</span><span>' + hgxEsc(dis[j].name) + '</span><span class="mx-gsv">' + hgxEsc(dis[j].severity) + '</span></button>');
+    }
+    h.push('</div><div id="mxGPan"><div class="mx-svgbox"><p class="mx-note">选择左侧疾病，查看知识关联网络。</p></div></div></div>');
+    h.push('<div id="mxGDetail"></div>');
+    viewHost.innerHTML = h.join('');
+    var items = viewHost.querySelectorAll('.mx-gitem');
+    Array.prototype.forEach.call(items, function(b){
+      b.addEventListener('click', function(){
+        Array.prototype.forEach.call(items, function(x){ x.classList.remove('on'); });
+        b.classList.add('on');
+        mxGraphRender(parseInt(b.getAttribute('data-i'), 10));
+      });
+    });
+    var bL = QS('#mxGS-L'), bF = QS('#mxGS-F');
+    if(bL){ bL.addEventListener('click', function(){
+      if(mxGScope === 'local'){ return; }
+      mxGScope = 'local'; bL.classList.add('on'); if(bF){ bF.classList.remove('on'); }
+      mxGraphRender(mxGCur);
+    }); }
+    if(bF){ bF.addEventListener('click', function(){
+      if(mxGScope === 'fed'){ return; }
+      mxGScope = 'fed'; bF.classList.add('on'); if(bL){ bL.classList.remove('on'); }
+      mxGraphRender(mxGCur);
+    }); }
+    if(items.length){ items[0].classList.add('on'); mxGraphRender(0); }
+  }).catch(function(){ viewHost.innerHTML = '<p class="mx-err">图谱数据加载失败，请稍后重试。</p>'; });
+}
+function mxGraphRender(idx){
+  mxGCur = idx;
+  var graph = (mxGScope === 'fed') ? HGX_CACHE.graphFed : HGX_CACHE.graphLoc;
+  var dis = HGX_CACHE.diseases;
+  if(!graph || !dis || !dis[idx]){ return; }
+  var d0 = dis[idx], nodes = graph.nodes || [], edges = graph.edges || [];
+  var self = null, k;
+  for(k = 0; k < nodes.length; k++){ if(nodes[k].type === 'disease' && nodes[k].label === d0.name){ self = nodes[k]; break; } }
+  var nb = { symptom: [], drug: [], test: [], dept: [] };
+  var nbE = {};
+  if(self){
+    for(k = 0; k < edges.length; k++){
+      var e = edges[k], other = null;
+      if(e.source === self.id){ other = nodes[e.target]; }
+      else if(e.target === self.id){ other = nodes[e.source]; }
+      if(other && nb[other.type] !== undefined && nb[other.type].indexOf(other.label) < 0){
+        nb[other.type].push(other.label);
+        nbE[other.label] = { cov: e.covers || 1, w: e.w || 0, mine: !!(e.hospitals && e.hospitals[HGX.hospital]) };
+      }
+    }
+  }
+  var items = [];
+  var cats = [['symptom', '#5ea2ff'], ['drug', '#37d3a0'], ['test', '#f0b45a'], ['dept', '#b48cf2']];
+  for(var ci = 0; ci < cats.length; ci++){
+    var arr = nb[cats[ci][0]] || [];
+    for(var ai = 0; ai < arr.length; ai++){ items.push({ label: arr[ai], color: cats[ci][1] }); }
+  }
+  var W = 660, H = 380, cx = W / 2, cy = H / 2 + 6, R = 138;
+  var g = [];
+  g.push('<svg class="mx-svg" viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid meet">');
+  for(var i2 = 0; i2 < items.length; i2++){
+    var a = (i2 / Math.max(items.length, 1)) * Math.PI * 2 - Math.PI / 2;
+    var x = cx + Math.cos(a) * R, y = cy + Math.sin(a) * R;
+    var st2 = nbE[items[i2].label] || {};
+    var lineStyle;
+    if(mxGScope === 'fed'){
+      if(!st2.mine){
+        lineStyle = 'stroke:rgba(127,216,240,.9);stroke-width:1.7;stroke-dasharray:6,4';
+      } else {
+        var op2 = Math.min(0.6, 0.12 + 0.07 * (st2.cov || 1));
+        lineStyle = 'stroke:rgba(120,150,220,' + op2.toFixed(2) + ');stroke-width:' + (0.8 + 0.18 * (st2.cov || 1)).toFixed(2);
+      }
+    } else {
+      lineStyle = 'stroke:rgba(120,150,220,.22);stroke-width:1';
+    }
+    g.push('<line x1="' + cx + '" y1="' + cy + '" x2="' + x.toFixed(1) + '" y2="' + y.toFixed(1) + '" style="' + lineStyle + '"/>');
+    g.push('<circle cx="' + x.toFixed(1) + '" cy="' + y.toFixed(1) + '" r="5" style="fill:' + items[i2].color + '"/>');
+    var lx = cx + Math.cos(a) * (R + 16), ly = cy + Math.sin(a) * (R + 16);
+    var anchor = 'middle';
+    if(Math.cos(a) > 0.25){ anchor = 'start'; } else if(Math.cos(a) < -0.25){ anchor = 'end'; }
+    g.push('<text x="' + lx.toFixed(1) + '" y="' + (ly + 3).toFixed(1) + '" text-anchor="' + anchor + '" style="fill:#9db4d6;font-size:11px">' + hgxEsc(items[i2].label) + '</text>');
+  }
+  g.push('<circle cx="' + cx + '" cy="' + cy + '" r="34" style="fill:rgba(37,99,235,.28);stroke:#5ea2ff;stroke-width:1.5"/>');
+  g.push('<text x="' + cx + '" y="' + (cy - 1) + '" text-anchor="middle" style="fill:#e8eefc;font-size:20px">' + hgxEsc(d0.icon || '') + '</text>');
+  g.push('<text x="' + cx + '" y="' + (cy + 21) + '" text-anchor="middle" style="fill:#cfe0ff;font-size:11px">' + hgxEsc(d0.name) + '</text>');
+  g.push('</svg>');
+  var pan = QS('#mxGPan');
+  var legend = '<div class="mx-legend"><span><i style="background:#5ea2ff"></i>症状 ' + nb.symptom.length + '</span>' +
+    '<span><i style="background:#37d3a0"></i>药物 ' + nb.drug.length + '</span>' +
+    '<span><i style="background:#f0b45a"></i>检查 ' + nb.test.length + '</span>' +
+    '<span><i style="background:#b48cf2"></i>科室</span>' +
+    (mxGScope === 'fed' ? '<span><i style="background:#7fd8f0"></i>他院新增（虚线）</span>' : '') + '</div>';
+  pan.innerHTML = '<div class="mx-svgbox">' + g.join('') + legend + '</div>';
+
+  function countDis(G){
+    var c = 0, nw = 0, es = (G && G.edges) || [], ns = (G && G.nodes) || [], q3;
+    for(q3 = 0; q3 < es.length; q3++){
+      var e3 = es[q3], sN = ns[e3.source], tN = ns[e3.target], lab = null;
+      if(sN && sN.label === d0.name){ lab = tN ? tN.label : ''; }
+      else if(tN && tN.label === d0.name){ lab = sN ? sN.label : ''; }
+      if(lab !== null){
+        c++;
+        if(!(e3.hospitals && e3.hospitals[HGX.hospital])){ nw++; }
+      }
+    }
+    return [c, nw];
+  }
+  var locC = countDis(HGX_CACHE.graphLoc), fedC = countDis(HGX_CACHE.graphFed);
+  var rd = [];
+  rd.push('<div class="mx-detail"><section><h5>疾病信息</h5><p><b>' + hgxEsc(d0.name) + '</b> · ' + hgxEsc(d0.dept) + ' · 严重度 ' + hgxEsc(d0.severity) + '</p><p>' + hgxEsc((d0.cause || '—')).slice(0, 190) + '</p></section>');
+  rd.push('<section><h5>联邦聚合（本疾病）</h5><p>本院关联 <b>' + locC[0] + '</b> 条 · 联邦聚合 <b>' + fedC[0] + '</b> 条' +
+    (HGX.hospital !== 'ALL' ? ' · 其中 <b>' + fedC[1] + '</b> 条来自其他院（聚合补齐）' : ' · 聚合自 6 院') + '。</p></section>');
+  rd.push('<section><h5>各院发病率（模拟）</h5>');
+  var rates = d0.rates || {}, hids = ['A', 'B', 'C', 'D', 'E', 'F'], maxR = 0.0001, hi2;
+  for(hi2 = 0; hi2 < hids.length; hi2++){ if((rates[hids[hi2]] || 0) > maxR){ maxR = rates[hids[hi2]]; } }
+  for(hi2 = 0; hi2 < hids.length; hi2++){
+    var rv = rates[hids[hi2]] || 0, wpc = Math.round(rv / maxR * 100);
+    rd.push('<div class="mx-raterow"><b>' + hids[hi2] + ' 院</b><div class="mx-ratebar"><i style="width:' + Math.max(3, wpc) + '%"></i></div><span>' + (rv * 100).toFixed(1) + '%</span></div>');
+  }
+  rd.push('</section></div>');
+  QS('#mxGDetail').innerHTML = rd.join('');
+}
+
+
+/* —— ③ 联邦训练（/api/fl/train · 真 FedAvg · 全局模型下发诊断引擎） —— */
+function mxOpenFL(){
+  enterView('联邦训练演示', 'FedAvg · 合成模拟数据 · 训练后全局模型直接服务「AI 辅助诊断」');
+  Promise.all([
+    hgxGet('/api/fl/train'),
+    hgxGet('/api/fl/status').catch(function(){ return null; })
+  ]).then(function(out){
+    renderFL(out[0], out[1]);
+  }).catch(function(){ viewHost.innerHTML = '<p class="mx-err">联邦接口不可用：请确认后端服务已启动（/api/fl/train）。</p>'; });
+
+  function renderFL(fl, st){
+    if(st){ HGX_CACHE.flstatus = st; }
+    var h = [];
+    h.push('<p class="mx-note">六家医院各自在本地训练（数据一步不出院），只上传模型参数；服务器按样本量加权聚合出<b>全局诊断模型</b>，训练完成后自动下发到「AI 辅助诊断」模块。</p>');
+    h.push('<div class="mx-flstat">' + (st && st.trained
+      ? ('<span>全局模型 <b>v' + st.version + '</b> · 训练于 ' + hgxEsc(st.trained_at || '—') + ' · <b>' + st.params + '</b> 个参数 · 六院联合样本 <b>' + st.total_samples + '</b> · 损失 <b>' + st.loss + '</b> · 准确率 <b>' + st.acc + '%</b>' + (st.holdout_acc != null ? ' · 留出集 <b>' + st.holdout_acc + '%</b>' : '') + (st.feedback_total ? ' · 反馈样本 <b>' + st.feedback_total + '</b> 条' : '') + '</span>')
+      : '<span>尚未训练：点击「再训一轮」发起首轮联邦训练</span>') + '</div>');
+    var bests = fl.best_solo || null;
+    h.push('<div class="mx-flcards">');
+    for(var i = 0; i < fl.solo.length; i++){
+      var s1 = fl.solo[i];
+      h.push('<div class="mx-flcard"><b>' + hgxEsc(s1.name) + '</b><span class="mx-mut">样本 ' + s1.n + ' · 单干损失 ' + s1.loss + ' · 准确率 ' + s1.acc + '%</span></div>');
+    }
+    h.push('<div class="mx-flcard mx-hl"><b>联邦全局模型</b><span class="mx-mut">' + fl.rounds + ' 轮加权聚合 · 损失 ' + fl.final.loss + ' · 准确率 ' + fl.final.acc + '%' + (bests ? '（优于最好单院 ' + bests.loss + '）' : '') + '</span></div>');
+    h.push('</div>');
+    var fbs = fl.feedback_since || {}, fbTotal = 0, fbTxt = [];
+    for(var fk in fbs){ if(fbs[fk] > 0){ fbTxt.push(fk + ' 院 ' + fbs[fk]); fbTotal += fbs[fk]; } }
+    h.push('<div class="mx-flstat"><span>本轮新增医生反馈样本：' + (fbTotal ? ('<b>' + fbTotal + '</b> 条（' + fbTxt.join(' · ') + '）') : '暂无（去「AI 辅助诊断」采纳 / 修正结果即可沉淀）') + '</span></div>');
+    h.push('<canvas id="mxFlCv" class="mx-canvas" height="320"></canvas>');
+    h.push('<div class="mx-acts"><span class="mx-mut" id="mxFlTip">共 ' + fl.rounds + ' 轮 · 参训样本 ' + fl.total_samples + '</span>' +
+           '<button class="btn primary sm" id="mxFlRetrain" type="button">再训一轮</button>' +
+           '<button class="btn ghost dark sm" id="mxFlPlay" type="button">播放训练</button>' +
+           '<button class="btn ghost dark sm" id="mxFlEval" type="button">评估详情</button>' +
+           '<button class="btn ghost dark sm" id="mxFlExport" type="button">导出训练日志</button></div>');
+    viewHost.innerHTML = h.join('');
+    var cv = QS('#mxFlCv'), tip = QS('#mxFlTip'), playBtn = QS('#mxFlPlay'), retrainBtn = QS('#mxFlRetrain');
+    var dpr = Math.min(2, window.devicePixelRatio || 1);
+    var roundsShown = 0;
+    function drawAll(){
+      var Wp = cv.offsetWidth || 640, Hp = 320;
+      cv.width = Wp * dpr; cv.height = Hp * dpr;
+      var ctx = cv.getContext('2d');
+      ctx.clearRect(0, 0, cv.width, cv.height);
+      var padL = 48 * dpr, padR = 20 * dpr, padT = 22 * dpr, padB = 34 * dpr;
+      var x0 = padL, x1 = cv.width - padR, y0 = padT, y1 = cv.height - padB;
+      var hist = fl.history, lo = Infinity, hi = -Infinity, i;
+      for(i = 0; i < hist.length; i++){ if(hist[i].loss < lo){ lo = hist[i].loss; } if(hist[i].loss > hi){ hi = hist[i].loss; } }
+      lo = Math.max(0, lo - (hi - lo) * 0.18); hi = hi + (hi - lo) * 0.08;
+      function X(r){ return x0 + (r / fl.rounds) * (x1 - x0); }
+      function Y(v){ return y1 - ((v - lo) / (hi - lo)) * (y1 - y0); }
+      ctx.strokeStyle = 'rgba(120,150,220,.14)'; ctx.fillStyle = 'rgba(150,175,215,.75)';
+      ctx.font = (10 * dpr) + 'px "Microsoft YaHei",sans-serif';
+      for(var g2 = 0; g2 <= 4; g2++){
+        var vv = hi - ((hi - lo) / 4) * g2, yy2 = Y(vv);
+        ctx.beginPath(); ctx.moveTo(x0, yy2); ctx.lineTo(x1, yy2); ctx.stroke();
+        ctx.textAlign = 'right'; ctx.fillText(vv.toFixed(2), x0 - 6 * dpr, yy2 + 3 * dpr);
+      }
+      ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(150,175,215,.75)';
+      for(var r2 = 0; r2 <= fl.rounds; r2 += 3){ ctx.fillText(String(r2), X(r2), y1 + 16 * dpr); }
+      ctx.fillText('轮次', (x0 + x1) / 2, y1 + 29 * dpr);
+      var upto = roundsShown > 0 ? roundsShown : fl.rounds;
+      ctx.strokeStyle = '#5ea2ff'; ctx.lineWidth = 2 * dpr; ctx.beginPath();
+      for(var r3 = 0; r3 <= upto; r3++){
+        var px = X(r3), py = Y(hist[r3].loss);
+        if(r3 === 0){ ctx.moveTo(px, py); } else { ctx.lineTo(px, py); }
+      }
+      ctx.stroke();
+      var lastX = X(upto), lastY = Y(hist[upto].loss);
+      ctx.fillStyle = '#9cc8ff'; ctx.beginPath(); ctx.arc(lastX, lastY, 3 * dpr, 0, 6.283); ctx.fill();
+      ctx.fillStyle = 'rgba(200,224,255,.95)'; ctx.textAlign = 'left';
+      ctx.fillText(hist[upto].loss.toFixed(3), Math.min(lastX + 6 * dpr, x1 - 32 * dpr), Math.max(lastY - 6 * dpr, y0 + 10 * dpr));
+    }
+    drawAll();
+    if(window.__mxFlRes){ removeEventListener('resize', window.__mxFlRes); }
+    window.__mxFlRes = drawAll;
+    addEventListener('resize', drawAll);
+    var played = false;
+    playBtn.addEventListener('click', function(){
+      played = true;
+      if(roundsShown >= fl.rounds && roundsShown > 0){ roundsShown = 0; }
+      var t = setInterval(function(){
+        roundsShown = Math.min(fl.rounds, roundsShown + 1);
+        drawAll();
+        tip.textContent = '第 ' + roundsShown + ' 轮 · 全局损失 ' + fl.history[roundsShown].loss + ' · 准确率 ' + fl.history[roundsShown].acc + '%';
+        if(roundsShown >= fl.rounds){
+          clearInterval(t);
+          tip.textContent = fl.rounds + ' 轮完成 · 全局损失 ' + fl.final.loss + ' · 准确率 ' + fl.final.acc + '% · 参训样本 ' + fl.total_samples;
+        }
+      }, 300);
+    });
+    retrainBtn.addEventListener('click', function(){
+      if(retrainBtn.disabled){ return; }
+      retrainBtn.disabled = true;
+      retrainBtn.textContent = '训练中…';
+      tip.textContent = '六院正在本地训练并聚合参数…';
+      hgxPost('/api/fl/train', {}).then(function(r){
+        if(!r.ok || !r.data || !r.data.ok){ retrainBtn.disabled = false; retrainBtn.textContent = '再训一轮'; tip.textContent = '训练失败，请重试'; return; }
+        hgxGet('/api/fl/status').then(function(st2){
+          HGX_CACHE.flstatus = st2;
+          toast('全局模型 v' + st2.version + ' 已下发至「AI 辅助诊断」');
+          renderFL(r.data, st2);
+        }).catch(function(){
+          toast('训练完成（状态接口暂不可用）');
+          renderFL(r.data, null);
+        });
+      }).catch(function(){
+        retrainBtn.disabled = false;
+        retrainBtn.textContent = '再训一轮';
+        tip.textContent = '训练请求失败，请重试';
+      });
+    });
+    var expBtn = QS('#mxFlExport'), evalBtn = QS('#mxFlEval');
+    if(expBtn){ expBtn.addEventListener('click', function(){
+      expBtn.disabled = true;
+      fetch('/api/fl/export', { headers: hgxH(false) }).then(function(r){ if(!r.ok){ throw new Error('export failed'); } return r.blob(); }).then(function(b){
+        var a2 = document.createElement('a');
+        a2.href = URL.createObjectURL(b);
+        a2.download = 'fed_training_log.json';
+        document.body.appendChild(a2); a2.click();
+        setTimeout(function(){ URL.revokeObjectURL(a2.href); a2.remove(); }, 600);
+        expBtn.disabled = false;
+      }).catch(function(){ expBtn.disabled = false; toast('导出失败，请确认登录状态'); });
+    }); }
+    if(evalBtn){ evalBtn.addEventListener('click', function(){
+      var oldBox = QS('#mxFlEvalBox');
+      if(oldBox){ oldBox.parentNode.removeChild(oldBox); return; }
+      var ev = fl.holdout;
+      var dbx = document.createElement('div');
+      dbx.id = 'mxFlEvalBox'; dbx.className = 'mx-card';
+      if(!ev){
+        dbx.innerHTML = '<p class="mx-mut">暂无评估数据（重新训练后生成：留出集指标 + 混淆矩阵）。</p>';
+        viewHost.appendChild(dbx); return;
+      }
+      var ms = ev.per_class || [], rows2 = '';
+      for(var mi2 = 0; mi2 < ms.length; mi2++){
+        rows2 += '<tr><td>' + hgxEsc(ms[mi2].name) + '</td><td>' + ms[mi2].support + '</td><td>' + ms[mi2].precision + '%</td><td>' + ms[mi2].recall + '%</td><td>' + ms[mi2].f1 + '%</td></tr>';
+      }
+      var conf = ev.confusion || [], confHtml = '';
+      if(conf.length){
+        confHtml = '<details class="mx-conf"><summary>混淆矩阵（' + conf.length + '×' + conf.length + ' 折叠）</summary><div class="mx-confbox"><table><tr><th></th>';
+        for(var ci2 = 0; ci2 < conf.length; ci2++){ confHtml += '<th>' + (ci2 + 1) + '</th>'; }
+        confHtml += '</tr>';
+        for(var ri2 = 0; ri2 < conf.length; ri2++){
+          confHtml += '<tr><th>' + (ri2 + 1) + '</th>';
+          for(var cj2 = 0; cj2 < conf.length; cj2++){ confHtml += '<td>' + conf[ri2][cj2] + '</td>'; }
+          confHtml += '</tr>';
+        }
+        confHtml += '</table><p class="mx-mut">行 = 真实（序号对应当前病种顺序，可从导出的训练日志查看完整映射），列 = 预测。</p></div></details>';
+      }
+      dbx.innerHTML = '<div class="mx-ch"><b>留出集评估（训练不包含这些样本）</b><span class="mx-cdept">n=' + ev.n + ' · 损失 ' + ev.loss + ' · 准确率 ' + ev.acc + '%</span></div>' +
+        '<div class="mx-meta"><section><h5>分类指标（%）</h5><table class="mx-mini"><tr><th>病种</th><th>样本</th><th>精确率</th><th>召回率</th><th>F1</th></tr>' + rows2 + '</table></section></div>' + confHtml;
+      viewHost.appendChild(dbx);
+    }); }
+    setTimeout(function(){ if(!played && ACTIVE === 'fl'){ playBtn.click(); } }, 500);
+  }
+}
+
+
+
+/* —— ④ AI 医疗问答（/api/chat · 知识库 RAG） —— */
+var mxChatHist = [];
+function mxOpenChat(){
+  enterView('AI 医疗问答', '基于院内知识库（RAG）· 大模型生成回答');
+  var h = [];
+  h.push('<div class="mx-chat"><div class="mx-chlog" id="mxChLog">');
+  h.push('<div class="mx-msg a">你好，我是院内知识库医疗助手。可以问我疾病症状、常用药物、推荐检查等相关问题。</div>');
+  h.push('</div><div class="mx-inrow"><input id="mxChIn" type="text" placeholder="输入问题，回车发送…" autocomplete="off"><button class="btn primary sm" id="mxChSend" type="button">发送</button></div>');
+  h.push('<div class="mx-hints"><button type="button" class="mx-chip" data-q="急性心梗有哪些症状？">急性心梗有哪些症状？</button><button type="button" class="mx-chip" data-q="糖尿病常用什么药？">糖尿病常用什么药？</button><button type="button" class="mx-chip" data-q="胸痛应该做哪些检查？">胸痛应该做哪些检查？</button></div></div>');
+  viewHost.innerHTML = h.join('');
+  var log = QS('#mxChLog'), inp = QS('#mxChIn');
+  function push(role, text){
+    var div = document.createElement('div');
+    div.className = 'mx-msg ' + (role === 'user' ? 'u' : 'a');
+    div.textContent = text;
+    log.appendChild(div); log.scrollTop = log.scrollHeight;
+    return div;
+  }
+  function send(text){
+    var q2 = String(text || inp.value || '').trim();
+    if(!q2){ return; }
+    inp.value = '';
+    var histPayload = mxChatHist.slice(-6);
+    push('user', q2);
+    var wait = push('a', '正在查询知识库…');
+    wait.classList.add('mx-wait');
+    fetch('/api/chat', { method: 'POST', headers: hgxH(true), body: JSON.stringify({ message: q2, history: histPayload }) })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        var reply = (d && d.reply) || '（无回复）';
+        wait.classList.remove('mx-wait');
+        wait.textContent = reply;
+        mxChatHist.push({ role: 'user', content: q2 });
+        mxChatHist.push({ role: 'assistant', content: reply });
+        log.scrollTop = log.scrollHeight;
+      })
+      .catch(function(){
+        wait.classList.remove('mx-wait');
+        wait.textContent = '网络或后端服务异常，请稍后重试。';
+      });
+  }
+  QS('#mxChSend').addEventListener('click', function(){ send(); });
+  inp.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ send(); } });
+  var hints = viewHost.querySelectorAll('.mx-hints .mx-chip');
+  Array.prototype.forEach.call(hints, function(c){ c.addEventListener('click', function(){ send(c.getAttribute('data-q')); }); });
+  setTimeout(function(){ try{ inp.focus(); }catch(e){} }, 300);
+}
+
+
+/* ============================================================
+   v4.3 拍照分析（/api/photo/analyze · qwen-vl + 知识规则库）
+   ============================================================ */
+var mxPhotoFile = null;
+function mxOpenPhoto(){
+  enterView('拍照分析', '上传皮肤患处照片 · 初步分析 + 护理用药建议（健康教育参考）');
+  mxPhotoFile = null;
+  var h = [];
+  h.push('<p class="mx-note">拍摄或上传一张患处照片（清晰、光线充足）。系统将给出：<b>伤情初步分析 · 可能来源（如虫咬） · 护理步骤 · 用药参考 · 就医建议</b>。结果仅供参考，不构成诊断。</p>');
+  h.push('<label class="mx-drop" id="mxPhDrop"><input type="file" id="mxPhFile" accept="image/*" hidden><span class="mx-drop-ic">📷</span><span>点击选择照片（手机端可调用相机拍摄）</span><span class="mx-mut">支持 JPG / PNG，请小于 5MB</span></label>');
+  h.push('<div class="mx-phprev" id="mxPhPrev" hidden><img id="mxPhImg" alt="预览"></div>');
+  h.push('<div class="mx-acts"><span class="mx-mut" id="mxPhTip">未选择照片</span><button class="btn primary sm" id="mxPhGo" type="button" disabled>分析照片</button><button class="btn ghost dark sm" id="mxPhClr" type="button">清除</button></div>');
+  h.push('<div class="mx-acts" style="margin-top:2px"><button class="btn ghost dark sm" id="mxPhStatsBtn" type="button">查看伤情统计</button><span class="mx-mut">匿名统计：仅类别计数（k≥3 才展示），照片不出院</span></div>');
+  h.push('<div id="mxPhStats"></div>');
+  h.push('<div class="mx-hints"><span class="mx-mut">没有照片？示例试跑：</span><button type="button" class="mx-chip" id="mxPhS1">示例 · 蚊虫叮咬</button><button type="button" class="mx-chip" id="mxPhS2">示例 · 皮肤创面</button></div>');
+  h.push('<div id="mxPhRes"></div>');
+  viewHost.innerHTML = h.join('');
+  var file = QS('#mxPhFile'), prev = QS('#mxPhPrev'), img = QS('#mxPhImg'), tip = QS('#mxPhTip'), go = QS('#mxPhGo');
+  function setImg(dataUrl, label){
+    mxPhotoFile = dataUrl;
+    img.src = dataUrl; prev.hidden = false;
+    tip.textContent = label || '已选择照片';
+    go.disabled = false;
+  }
+  function clearAll(){
+    mxPhotoFile = null; prev.hidden = true; img.src = '';
+    tip.textContent = '未选择照片'; go.disabled = true;
+    QS('#mxPhRes').innerHTML = '';
+    try{ file.value = ''; }catch(e){}
+  }
+  file.addEventListener('change', function(){
+    var f = file.files && file.files[0];
+    if(!f){ return; }
+    if(f.size > 5 * 1024 * 1024){ toast('图片过大（超过 5MB），请先压缩后再上传'); return; }
+    var r = new FileReader();
+    r.onload = function(){ setImg(r.result, f.name || '已选择照片'); };
+    r.readAsDataURL(f);
+  });
+  QS('#mxPhClr').addEventListener('click', clearAll);
+  go.addEventListener('click', runPhoto);
+  function loadSample(name, label){
+    tip.textContent = '正在载入示例…';
+    fetch('/sample/' + name).then(function(r){ if(!r.ok){ throw new Error('HTTP ' + r.status); } return r.blob(); })
+      .then(function(b){
+        var fr = new FileReader();
+        fr.onload = function(){ setImg(fr.result, label); runPhoto(); };
+        fr.readAsDataURL(b);
+      })
+      .catch(function(){ tip.textContent = '示例载入失败，请检查后端服务'; });
+  }
+  QS('#mxPhS1').addEventListener('click', function(){ loadSample('sample_bite.jpg', '示例 · 蚊虫叮咬'); });
+  QS('#mxPhS2').addEventListener('click', function(){ loadSample('sample_wound.jpg', '示例 · 皮肤创面'); });
+  function fmtMasked(m){
+    if(!m){ return '—'; }
+    var keys2 = [];
+    for(var kk in (m.shown || {})){ keys2.push(kk + ' ' + m.shown[kk]); }
+    var s5 = keys2.join('、') || '暂无';
+    if(m.hidden_categories){ s5 += '（另有 ' + m.hidden_categories + ' 类少于 ' + (m.k || 3) + ' 例未展示）'; }
+    return s5;
+  }
+  QS('#mxPhStatsBtn').addEventListener('click', function(){
+    var box = QS('#mxPhStats');
+    box.innerHTML = '<div class="mx-load"><span class="mx-spin"></span> 加载统计…</div>';
+    hgxGet('/api/photo/stats').then(function(st){
+      if(!st || !st.ok){ box.innerHTML = '<p class="mx-err">统计加载失败</p>'; return; }
+      var h3 = ['<div class="mx-card"><div class="mx-ch"><b>伤情统计</b><span class="mx-cdept">' + (st.scope === 'ALL' ? '六院汇总（联邦统计）' : '本院（A–F 本地计数）') + '</span></div>'];
+      if(st.scope === 'ALL'){
+        h3.push('<div class="mx-meta"><section><h5>各院计数</h5><ul>');
+        var ph = st.per_hospital || [];
+        for(var i2 = 0; i2 < ph.length; i2++){ h3.push('<li>' + hgxEsc(ph[i2].hospital) + ' 院：' + ph[i2].total + ' 例</li>'); }
+        h3.push('</ul></section>');
+        var ag = st.aggregate || {};
+        h3.push('<section><h5>汇总分布（k-匿名）</h5><p>伤情：' + fmtMasked(ag.wound) + '</p><p>叮咬来源：' + fmtMasked(ag.insect) + '</p><p>分级：' + fmtMasked(ag.level) + '</p></section></div>');
+      } else {
+        h3.push('<div class="mx-meta"><section><h5>伤情类型</h5><p>' + fmtMasked(st.wound) + '</p></section>' +
+          '<section><h5>叮咬来源</h5><p>' + fmtMasked(st.insect) + '</p></section>' +
+          '<section><h5>处置分级</h5><p>' + fmtMasked(st.level) + '</p></section></div>');
+      }
+      h3.push('</div>');
+      box.innerHTML = h3.join('');
+    }).catch(function(){ box.innerHTML = '<p class="mx-err">统计加载失败（需登录后使用）</p>'; });
+  });
+  function runPhoto(){
+    if(!mxPhotoFile){ toast('请先选择或载入一张照片'); return; }
+    var res = QS('#mxPhRes');
+    res.innerHTML = '<div class="mx-load"><span class="mx-spin"></span> 正在分析（视觉模型观察 + 知识库匹配，约 10–20 秒）…</div>';
+    go.disabled = true;
+    fetch('/api/photo/analyze', { method: 'POST', headers: hgxH(true), body: JSON.stringify({ image: mxPhotoFile }) })
+      .then(function(r){ return r.json(); })
+      .then(function(d){
+        go.disabled = false;
+        if(!d || !d.ok){ res.innerHTML = '<p class="mx-err">分析失败：' + hgxEsc((d && d.error) || '未知错误') + '</p>'; return; }
+        var a = d.analysis || {};
+        var lv = d.level || '自行处理';
+        var lvCls = lv === '尽快就医' ? 'mx-lv-3' : (lv === '建议就医' ? 'mx-lv-2' : 'mx-lv-1');
+        var lvNote = lv === '尽快就医' ? '存在需要警惕的信号，建议尽快前往医院（急诊 / 皮肤科 / 感染科）。' :
+                     (lv === '建议就医' ? '建议近日前往门诊进一步评估处理。' : '可先自行护理并观察 48 小时，如加重再就医。');
+        var h2 = [];
+        h2.push('<div class="mx-lv ' + lvCls + '">处置建议：' + hgxEsc(lv) + ' · ' + hgxEsc(lvNote) + '</div>');
+        h2.push('<div class="mx-card"><div class="mx-ch"><b>' + hgxEsc(a.condition || '皮肤表现') + '</b>' +
+                '<span class="mx-badge mx-sv-' + hgxEsc(a.severity || '轻度') + '">' + hgxEsc(a.severity || '') + '</span>' +
+                (a.confidence ? '<span class="mx-cdept">推断置信度 ' + hgxEsc(a.confidence) + '</span>' : '') + '</div>');
+        var feats = a.features || [];
+        var ins = d.insects || [];
+        h2.push('<div class="mx-meta">');
+        h2.push('<section><h5>观察到的特征</h5>');
+        if(feats.length){ h2.push('<ul>'); for(var i = 0; i < feats.length; i++){ h2.push('<li>' + hgxEsc(feats[i]) + '</li>'); } h2.push('</ul>'); }
+        else { h2.push('<p>—</p>'); }
+        h2.push('</section>');
+        if(ins.length){
+          h2.push('<section><h5>可能的叮咬来源（生物学知识库）</h5><ul>');
+          for(var j = 0; j < ins.length; j++){
+            h2.push('<li><b>' + hgxEsc(ins[j].name) + '</b>：' + hgxEsc(ins[j].feature) + '（' + hgxEsc(ins[j].scene) + '）</li>');
+          }
+          h2.push('</ul></section>');
+        }
+        var care = d.care || [];
+        h2.push('<section><h5>护理步骤</h5>');
+        if(care.length){ h2.push('<ul>'); for(var k = 0; k < care.length; k++){ h2.push('<li>' + hgxEsc(care[k]) + '</li>'); } h2.push('</ul>'); }
+        else { h2.push('<p>保持清洁，观察变化。</p>'); }
+        h2.push('</section>');
+        var meds = d.meds || [];
+        h2.push('<section><h5>用药参考（非处方，仅供参考）</h5>');
+        if(meds.length){
+          h2.push('<ul>');
+          for(var mi = 0; mi < meds.length; mi++){
+            h2.push('<li><b>' + hgxEsc(meds[mi].name) + '</b> —— ' + hgxEsc(meds[mi].usage) + ' <span class="mx-mut">（' + hgxEsc(meds[mi].note) + '）</span></li>');
+          }
+          h2.push('</ul>');
+        } else { h2.push('<p>暂无需用药，做好清洁与观察。</p>'); }
+        h2.push('</section>');
+        h2.push('</div>');
+        var reds = d.red_flags || [];
+        if(reds.length){
+          h2.push('<div class="mx-card mx-flags-card"><h5>需要警惕（出现以下情况请及时就医）</h5><ul class="mx-flags">');
+          for(var ri = 0; ri < reds.length; ri++){ h2.push('<li>' + hgxEsc(reds[ri]) + '</li>'); }
+          h2.push('</ul></div>');
+        }
+        if(d.counted){
+          h2.push('<p class="mx-mut" style="font-size:.74rem;margin-top:8px">已匿名计入本院统计（' + hgxEsc(d.counted_hospital || '') + ' 院 · 类别计数，照片不出院）</p>');
+        }
+        h2.push('<p class="mx-mut" style="font-size:.74rem;margin-top:8px">' + hgxEsc(d.disclaimer || '结果仅供参考，不构成诊断。') + '</p>');
+        h2.push('</div>');
+        res.innerHTML = h2.join('');
+      })
+      .catch(function(){ go.disabled = false; res.innerHTML = '<p class="mx-err">网络或后端服务异常，请稍后重试。</p>'; });
+  }
+  var ps = new URLSearchParams(location.search).get('photosample');
+  if(ps === 'bite' || ps === 'wound'){
+    setTimeout(function(){ loadSample(ps === 'bite' ? 'sample_bite.jpg' : 'sample_wound.jpg', ps === 'bite' ? '示例 · 蚊虫叮咬' : '示例 · 皮肤创面'); }, 300);
+  }
+}
+
+
+
+/* ============================================================
+   v4.7 应用台外壳：视图切换 / 概览 / 登录注册 / 手机适配
+   ============================================================ */
+var viewHost = QS('#viewHost'), vTitle = QS('#vTitle'), vSub = QS('#vSub');
+var ACTIVE = '';
+function enterView(title, sub){
+  vTitle.textContent = title || '';
+  vSub.textContent = sub || '';
+  viewHost.innerHTML = '<div class="mx-load"><span class="mx-spin"></span> 正在连接后端…</div>';
+  var mb = document.querySelector('.main-body'); if(mb){ mb.scrollTop = 0; }
+}
+function setNav(name){ QSA('.navi').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-v') === name); }); }
+function closeSide(){ QS('#side').classList.remove('open'); QS('#sideMask').classList.remove('show'); }
+function openView(name){
+  var ok = true;
+  if(name === 'home'){ ACTIVE = 'home'; setNav('home'); renderHome(); }
+  else if(name === 'diag'){ ACTIVE = 'diag'; setNav('diag'); mxOpenDiag(); }
+  else if(name === 'graph'){ ACTIVE = 'graph'; setNav('graph'); mxOpenGraph(); }
+  else if(name === 'fl'){ ACTIVE = 'fl'; setNav('fl'); mxOpenFL(); }
+  else if(name === 'chat'){ ACTIVE = 'chat'; setNav('chat'); mxOpenChat(); }
+  else if(name === 'photo'){ ACTIVE = 'photo'; setNav('photo'); mxOpenPhoto(); }
+  else { ok = false; }
+  if(ok){
+    closeSide();
+    try{ history.replaceState(null, '', '#' + name); }catch(e){}
+  }
+}
+addEventListener('hashchange', function(){
+  var h = (location.hash || '').replace('#', '');
+  if(h && h !== ACTIVE){ openView(h); }
+});
+
+/* ---------- 概览 ---------- */
+var HOME_ICONS = {
+  diag: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h5"/><path d="M8 17l2-2 1.6 1.6L15.5 13"/>',
+  graph: '<circle cx="12" cy="6" r="2.4"/><circle cx="6" cy="17" r="2.4"/><circle cx="18" cy="17" r="2.4"/><path d="M10.8 8.1L7.2 14.9M13.2 8.1l3.6 6.8M8.4 17h7.2"/>',
+  fl: '<circle cx="12" cy="12" r="2.6"/><circle cx="5" cy="6" r="1.7"/><circle cx="19" cy="6" r="1.7"/><circle cx="5" cy="18" r="1.7"/><circle cx="19" cy="18" r="1.7"/><path d="M6.4 7.1l3.7 3.3M17.6 7.1l-3.7 3.3M6.4 16.9l3.7-3.3M17.6 16.9l-3.7-3.3"/>',
+  chat: '<path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5z"/><path d="M9 11h.01M12.5 11h.01M16 11h.01"/>',
+  photo: '<rect x="3" y="7" width="18" height="13" rx="2.2"/><circle cx="12" cy="13.4" r="3.6"/><path d="M8.6 7l1.3-2.2h4.2L15.4 7"/>'
+};
+function homeCard(v, title, desc){
+  return '<button class="hcard" data-v="' + v + '" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' + HOME_ICONS[v] + '</svg><b>' + title + '</b><span>' + desc + '</span><em>进入 →</em></button>';
+}
+function renderHome(){
+  enterView('概览', '欢迎回来');
+  var who = HGX.name || HGX.user || '';
+  var roleTxt = HGX.isCenter ? '联邦中心 · 全局视图' : (HGX.hospital || 'A') + ' 院 · 机构视图';
+  var h = [];
+  h.push('<div class="home-hero"><h3>你好，' + hgxEsc(who) + '</h3>');
+  h.push('<p>' + hgxEsc(roleTxt) + ' · 数据不出院，智慧可共享。<br>从左侧选择功能，或点击下方卡片进入。</p>');
+  h.push('<div class="home-chips" id="homeChips"></div></div>');
+  h.push('<div class="home-grid">');
+  h.push(homeCard('diag', 'AI 辅助诊断', '点选症状 → 鉴别诊断排名 → 推荐检查 / 用药 / 病因 / 预防。'));
+  h.push(homeCard('graph', '知识图谱', '24 类疾病 × 症状 / 药物 / 检查 可视化网络：本院视图与联邦聚合视图。'));
+  h.push(homeCard('fl', '联邦训练演示', '六院协同训练实时演示：参数如何流动，误差如何走低——数据不出院。'));
+  h.push(homeCard('chat', 'AI 医疗问答', '基于院内知识库的智能问答助手，辅助快速了解病情要点。'));
+  h.push(homeCard('photo', '拍照分析', '拍摄皮肤患处 → 初步分析（伤情 / 来源 / 严重度）→ 护理与用药参考。'));
+  h.push('</div>');
+  viewHost.innerHTML = h.join('');
+  QSA('.hcard').forEach(function(b){ b.addEventListener('click', function(){ openView(b.getAttribute('data-v')); }); });
+  hgxGet('/api/fl/status').then(function(st){
+    var chips = QS('#homeChips'); if(!chips || !st){ return; }
+    var arr = [];
+    if(st.trained){ arr.push('全局模型 v' + st.version + ' · 损失 ' + st.loss + ' · 准确率 ' + st.acc + '%'); if(st.holdout_acc != null){ arr.push('留出集 ' + st.holdout_acc + '%'); } }
+    else { arr.push('全局模型未训练 · 可到「联邦训练」发起一轮'); }
+    arr.push('六院数据联合');
+    chips.innerHTML = arr.map(function(t){ return '<span class="hchip">' + hgxEsc(t) + '</span>'; }).join('');
+  }).catch(function(){});
+}
+
+/* ---------- 登录 / 注册 ---------- */
+function showAuth(){
+  try{ localStorage.removeItem('hg_token'); }catch(e){}
+  try{ sessionStorage.removeItem('hg_token'); }catch(e){}
+  try{ sessionStorage.removeItem('hg_user'); }catch(e){}
+  QS('#appShell').hidden = true;
+  QS('#authScreen').hidden = false;
+}
+function boot(user){
+  user = user || {};
+  HGX.user = user.username || '';
+  HGX.name = user.name || user.username || '';
+  HGX.hospital = user.hospital || 'A';
+  HGX.isCenter = !!user.center;
+  QS('#sideAv').textContent = (HGX.name || '?').slice(0, 1);
+  QS('#sideNm').textContent = HGX.name;
+  QS('#sideRl').textContent = HGX.isCenter ? '联邦中心 · 全局视图' : (HGX.hospital || 'A') + ' 院 · 机构视图';
+  QS('#userChip').textContent = HGX.name + (HGX.isCenter ? ' · 中心' : ' · ' + HGX.hospital + ' 院');
+  QS('#authScreen').hidden = true;
+  QS('#appShell').hidden = false;
+  hgxGet('/api/fl/status').then(function(st){
+    if(st && st.trained){ QS('#modelBadge').textContent = '全局模型 v' + st.version; }
+  }).catch(function(){});
+  var h = (location.hash || '').replace('#', ''), v = q.get('view') || q.get('module') || '';
+  if(!v){ if(q.get('pick')){ v = 'diag'; } else if(q.get('photosample')){ v = 'photo'; } }
+  var first = h || v;
+  var allow = ['home', 'diag', 'graph', 'fl', 'chat', 'photo'];
+  openView(allow.indexOf(first) >= 0 ? first : 'home');
+}
+QSA('.auth-tab').forEach(function(t){
+  t.addEventListener('click', function(){
+    QSA('.auth-tab').forEach(function(x){ x.classList.toggle('on', x === t); });
+    QS('#loginForm').hidden = (t.getAttribute('data-tab') !== 'login');
+    QS('#regForm').hidden = (t.getAttribute('data-tab') !== 'reg');
+    QS('#lErr').textContent = ''; QS('#rErr').textContent = '';
+  });
+});
+function afterAuthOk(d, u){
+  try{ localStorage.setItem('hg_token', d.token); }catch(e){}
+  try{ sessionStorage.setItem('hg_token', d.token); }catch(e){}
+  toast('登录成功，欢迎 ' + ((d.user && d.user.name) || u));
+  boot(d.user);
+}
+QS('#loginForm').addEventListener('submit', function(ev){
+  ev.preventDefault();
+  var u = (QS('#lu').value || '').trim().toLowerCase(), p = QS('#lp').value || '';
+  if(!u || !p){ QS('#lErr').textContent = '请输入用户名和密码'; return; }
+  var b = QS('#lBtn'); b.disabled = true;
+  hgxPost('/api/login', { username: u, password: p }).then(function(r){
+    b.disabled = false;
+    if(r.ok && r.data && r.data.ok){ afterAuthOk(r.data, u); }
+    else { QS('#lErr').textContent = (r.data && r.data.error) || '账号或密码错误'; }
+  }).catch(function(){ b.disabled = false; QS('#lErr').textContent = '无法连接服务器，请确认后端已启动'; });
+});
+QS('#regForm').addEventListener('submit', function(ev){
+  ev.preventDefault();
+  var u = (QS('#ru').value || '').trim().toLowerCase();
+  var n = (QS('#rn').value || '').trim();
+  var hs = QS('#rh').value || 'A';
+  var p1 = QS('#rp').value || '', p2 = QS('#rp2').value || '';
+  if(!/^[a-z0-9_]{3,20}$/.test(u)){ QS('#rErr').textContent = '用户名需为 3–20 位字母 / 数字 / 下划线'; return; }
+  if(p1.length < 6){ QS('#rErr').textContent = '密码至少 6 位'; return; }
+  if(p1 !== p2){ QS('#rErr').textContent = '两次输入的密码不一致'; return; }
+  var b = QS('#rBtn'); b.disabled = true;
+  hgxPost('/api/register', { username: u, password: p1, name: n, hospital: hs }).then(function(r){
+    b.disabled = false;
+    if(r.ok && r.data && r.data.ok){ afterAuthOk(r.data, u); }
+    else { QS('#rErr').textContent = (r.data && r.data.error) || '注册失败，请稍后重试'; }
+  }).catch(function(){ b.disabled = false; QS('#rErr').textContent = '无法连接服务器，请确认后端已启动'; });
+});
+QSA('.dchip').forEach(function(c){
+  c.addEventListener('click', function(){
+    QSA('.auth-tab').forEach(function(x){ x.classList.toggle('on', x.getAttribute('data-tab') === 'login'); });
+    QS('#loginForm').hidden = false; QS('#regForm').hidden = true;
+    QS('#lu').value = c.getAttribute('data-u');
+    QS('#lp').value = 'demo2026';
+    QS('#lErr').textContent = '';
+    try{ QS('#lBtn').focus(); }catch(e){}
+  });
+});
+QS('#logoutBtn').addEventListener('click', function(){
+  try{
+    var tk = hgxTok();
+    if(tk){ fetch('/api/logout', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token: tk }) }).catch(function(){}); }
+  }catch(e){}
+  try{ localStorage.removeItem('hg_token'); }catch(e){}
+  try{ sessionStorage.removeItem('hg_token'); sessionStorage.removeItem('hg_user'); }catch(e){}
+  location.reload();
+});
+QS('#menuBtn').addEventListener('click', function(){ QS('#side').classList.add('open'); QS('#sideMask').classList.add('show'); });
+QS('#sideMask').addEventListener('click', closeSide);
+QSA('.navi').forEach(function(b){ b.addEventListener('click', function(){ openView(b.getAttribute('data-v')); }); });
+
+/* ---------- 启动 ---------- */
+(function(){
+  var auto = q.get('autologin');
+  if(auto){
+    hgxPost('/api/login', { username: auto, password: 'demo2026' }).then(function(r){
+      if(r.ok && r.data && r.data.ok){ try{ localStorage.setItem('hg_token', r.data.token); }catch(e){} try{ sessionStorage.setItem('hg_token', r.data.token); }catch(e){} boot(r.data.user); }
+      else { showAuth(); toast('自动登录失败（' + ((r.data && r.data.error) || '未知原因') + '），请手动登录'); }
+    }).catch(function(){ showAuth(); });
+    return;
+  }
+  var tk = hgxTok();
+  if(!tk){ showAuth(); return; }
+  hgxGet('/api/me').then(function(d){
+    if(d && d.ok && d.user && d.user.username){ boot(d.user); }
+    else { showAuth(); }
+  }).catch(function(){ showAuth(); });
+})();
+
+})();
+</script>
+</body>
+</html>

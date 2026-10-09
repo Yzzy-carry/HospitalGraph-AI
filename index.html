@@ -3,6 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0a1628">
+<link rel="manifest" href="/static/manifest.json">
+<link rel="icon" type="image/png" sizes="192x192" href="/static/icon-192.png">
+<link rel="apple-touch-icon" href="/static/apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
+<meta name="apple-mobile-web-app-title" content="医院图谱AI">
 <title>联邦医院知识图谱 AI · 多院协同智能平台</title>
 <!-- HospitalGraph 前端设计 v1 · 叙事 + 登录 + 工作台 · 2026-09-29 -->
 <style>
@@ -377,6 +385,16 @@ body.mx-open{overflow:hidden}
 .mx-based{margin-left:8px;font-style:normal;font-size:.68rem;color:var(--txm);font-weight:500}
 .mx-flstat{background:rgba(8,18,36,.6);border:1px solid rgba(94,162,255,.14);border-radius:10px;padding:10px 14px;margin:10px 0;font-size:.78rem;color:var(--txm);line-height:1.8}
 .mx-flstat b{color:var(--blue2)}
+/* ---------- v4.5 加固与扩量 ---------- */
+.mx-fbrow{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed rgba(94,162,255,.18)}
+.mx-fbsel{background:rgba(8,18,36,.8);border:1px solid rgba(94,162,255,.25);border-radius:8px;color:var(--tx);padding:4px 8px;font-size:.76rem;font-family:inherit}
+.mx-conf{margin-top:10px}
+.mx-confbox{overflow:auto;max-height:300px;border:1px solid rgba(94,162,255,.14);border-radius:8px;padding:6px}
+.mx-confbox table{border-collapse:collapse;font-size:.62rem}
+.mx-confbox th,.mx-confbox td{border:1px solid rgba(94,162,255,.14);padding:2px 4px;text-align:center;color:var(--txm)}
+.mx-mini{width:100%;border-collapse:collapse;font-size:.7rem}
+.mx-mini th,.mx-mini td{border:1px solid rgba(94,162,255,.14);padding:3px 6px;text-align:left;color:var(--txm)}
+.fed-note{font-size:.72rem;color:var(--txm);text-align:center;margin-top:6px}
 </style>
 </head>
 <body>
@@ -459,7 +477,7 @@ body.mx-open{overflow:hidden}
         <div class="fed-visual">
           <div class="fed-stage">
             <canvas id="fedCanvas"></canvas>
-            <div class="fed-loss" id="fedLoss">演示误差 0.89</div>
+            <div class="fed-loss" id="fedLoss">示意误差 0.89</div>
             <div class="fed-caption" id="fedCaption">① 初始化 —— 中心服务器把初始模型下发给六家医院</div>
           </div>
           <div class="fed-chart">
@@ -488,7 +506,7 @@ body.mx-open{overflow:hidden}
     <p class="sec-sub rv">用一套完整的示范数据（自模拟），把「本地训练 → 上传参数 → 中心聚合」的每一步算给你看：点「播放」，看数字和曲线如何一轮轮变化。</p>
 
     <div class="calc-formulas">
-      <div class="cf-card rv"><div class="cf-t">① 本地训练（各家医院）</div><div class="cf-f">wᵢ ← wᵢ − η · ∇Lᵢ(wᵢ)</div><p>各院用本院数据计算梯度、更新自己的参数；η 为学习率（本演示 η = 0.025）。</p></div>
+      <div class="cf-card rv"><div class="cf-t">① 本地训练（各家医院）</div><div class="cf-f">wᵢ ← wᵢ − η · ∇Lᵢ(wᵢ)</div><p>各院用本院数据计算梯度、更新自己的参数；η 为学习率（本演示为示意步长 η = 0.025；真实训练参数见工作台「联邦训练」）。</p></div>
       <div class="cf-card rv"><div class="cf-t">② 上传（数据不出院）</div><div class="cf-f">上传：wᵢ、样本数 nᵢ</div><p>只有参数和样本数离开医院；病例数据一步也不出院子。</p></div>
       <div class="cf-card rv"><div class="cf-t">③ 中心聚合（FedAvg）</div><div class="cf-f">w = Σᵢ (nᵢ / N) · wᵢ</div><p>按样本量加权平均：样本越多的医院，话语权越大（N 为样本总数）。</p></div>
     </div>
@@ -535,14 +553,14 @@ body.mx-open{overflow:hidden}
   <div class="wrap">
     <div class="eyebrow rv">04 · 数据测验</div>
     <h2 class="sec-title rv">平台自模拟数据 · 规模测验</h2>
-    <p class="sec-sub rv">系统内置一套平台自模拟生成的数据集：六家医院 · 九类疾病 · 症状 / 药物 / 检查全链路，用于功能测验与协同训练演示（非真实临床数据）。</p>
+    <p class="sec-sub rv">系统内置一套平台自模拟生成的数据集：六家医院 · 24 类疾病 · 症状 / 药物 / 检查全链路，用于功能测验与协同训练演示（非真实临床数据）。</p>
     <div class="metrics">
       <div class="metric rv"><b data-count="6">0</b><span>家协作医院</span></div>
-      <div class="metric rv"><b data-count="9">0</b><span>疾病类别</span></div>
-      <div class="metric rv"><b data-count="32">0</b><span>症状</span></div>
-      <div class="metric rv"><b data-count="27">0</b><span>药物</span></div>
-      <div class="metric rv"><b data-count="24">0</b><span>检查项</span></div>
-      <div class="metric rv"><b data-count="99">0</b><span>知识节点</span></div>
+      <div class="metric rv"><b data-count="24">0</b><span>疾病类别</span></div>
+      <div class="metric rv"><b data-count="61">0</b><span>症状</span></div>
+      <div class="metric rv"><b data-count="53">0</b><span>药物</span></div>
+      <div class="metric rv"><b data-count="37">0</b><span>检查项</span></div>
+      <div class="metric rv"><b data-count="190">0</b><span>知识节点</span></div>
     </div>
     <p class="data-note rv">* 数据由平台自模拟生成，仅用于功能测验与效果演示；联邦训练为 15 轮算法演示（误差曲线见「联邦机制」段）。</p>
   </div>
@@ -598,7 +616,7 @@ body.mx-open{overflow:hidden}
         <p class="okwho" id="okWho">欢迎</p>
         <div class="ok-perm" id="okPerm">权限</div>
         <div class="ok-btns">
-          <a class="btn primary" href="#workbench">进入工作台 ↓</a>
+          <a class="btn primary" href="/app">进入应用台 →</a>
           <button class="btn ghost dark" id="logoutBtn" type="button">退出登录</button>
         </div>
       </div>
@@ -613,8 +631,8 @@ body.mx-open{overflow:hidden}
     <h2 class="sec-title dark rv">五大模块，登录后启用</h2>
     <div class="wb-status" id="wbBar">
       <span class="st-dot"></span>
-      <span id="wbBarName">当前未登录 · 登录后启用工作台</span>
-      <span class="mut">已接入后端 · v4.3</span>
+      <span id="wbBarName">当前未登录 · 登录后进入应用台</span>
+      <span class="mut">已接入后端 · v4.5</span>
     </div>
     <div class="wb-grid locked" id="wbGrid">
 
@@ -628,7 +646,7 @@ body.mx-open{overflow:hidden}
       <div class="wcard">
         <svg class="wic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="6" r="2.4"/><circle cx="6" cy="17" r="2.4"/><circle cx="18" cy="17" r="2.4"/><path d="M10.8 8.1L7.2 14.9M13.2 8.1l3.6 6.8M8.4 17h7.2"/></svg>
         <h3>知识图谱</h3>
-        <p class="desc">9 类疾病 × 症状 / 药物 / 检查 的可视化知识网络：点击疾病展开关联知识，学习路径一目了然。</p>
+        <p class="desc">24 类疾病 × 症状 / 药物 / 检查 的可视化知识网络：点击疾病展开关联知识，学习路径一目了然。</p>
         <div class="wrow"><span class="wstat live">已接入 · 可交互</span><button class="btn primary sm" data-module="graph">进入</button></div>
       </div>
 
@@ -663,7 +681,7 @@ body.mx-open{overflow:hidden}
       <div class="wb-lock" id="wbLock">
         <div class="lk">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="10" width="16" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3"/></svg>
-          <p>登录后进入工作台</p>
+          <p>登录后进入应用台</p>
           <a class="btn primary" href="#login">去登录</a>
         </div>
       </div>
@@ -823,7 +841,7 @@ var CAPS = [
   '② 本地训练 —— 各家医院用本院数据训练，数据一步也不出院',
   '③ 上传参数 —— 只把模型参数（“学习成果”）加密上传，不传病例',
   '④ 中心聚合 —— FedAvg 聚合六家参数，折线图中全局误差加速下降',
-  '⑤ 循环 —— 重复多轮，误差曲线持续走低（蓝 = 联邦全局，灰 = 各院单独）'
+  '⑤ 循环 —— 重复多轮，误差曲线持续走低（蓝 = 联邦全局，灰 = 各院单独；本区为概念示意）'
 ];
 var fed = {
   track: QS('#fedTrack'), steps: QSA('#fedSteps .fstep'), cap: QS('#fedCaption'),
@@ -831,6 +849,16 @@ var fed = {
   step: 0, forced: false
 };
 var fedChartDraw = null;
+var LAND_REAL = null;
+function mxLoadLandFed(){
+  hgxGet('/api/fl/status').then(function(st){
+    if(st && st.trained && st.loss != null){
+      LAND_REAL = st;
+      try{ fedOnScroll(); }catch(e){}
+      if(isMobile){ setFedUI(fed.step, fed.step/4); }
+    }
+  }).catch(function(){});
+}
 var isMobile = matchMedia('(max-width: 900px)').matches;
 
 function syncSteps(s){
@@ -842,7 +870,12 @@ function syncSteps(s){
 function setFedUI(s, p){
   syncSteps(s);
   if(fed.cap) fed.cap.textContent = CAPS[s];
-  if(fed.loss) fed.loss.textContent = '演示误差 ' + (0.89 - 0.47 * (p === undefined ? s/4 : p)).toFixed(2);
+  if(fed.loss){
+    var lp2 = (p === undefined ? s/4 : p);
+    fed.loss.textContent = LAND_REAL
+      ? ('真实训练损失 ' + Number(LAND_REAL.loss).toFixed(4))
+      : ('示意误差 ' + (0.89 - 0.47 * lp2).toFixed(2));
+  }
   if(fed.bar) fed.bar.style.width = ((p === undefined ? s/4 : p) * 100) + '%';
   if(fedChartDraw) fedChartDraw(p === undefined ? s/4 : p);
 }
@@ -868,7 +901,9 @@ if(fed.track && isMobile){
   var autoS = 0; setFedUI(0, 0);
   setInterval(function(){ autoS = (autoS + 1) % 5; fed.step = autoS; syncSteps(autoS);
     if(fed.cap) fed.cap.textContent = CAPS[autoS];
-    if(fed.loss) fed.loss.textContent = '演示误差 ' + (0.89 - 0.47 * autoS / 4).toFixed(2);
+    if(fed.loss) fed.loss.textContent = LAND_REAL
+      ? ('真实训练损失 ' + Number(LAND_REAL.loss).toFixed(4))
+      : ('示意误差 ' + (0.89 - 0.47 * autoS / 4).toFixed(2));
     if(fedChartDraw) fedChartDraw(autoS / 4); }, 2400);
 }
 var fsParam = q.get('fedstep');
@@ -1003,6 +1038,15 @@ if(fsParam !== null && fed.track){
   fedChartDraw = function(p){ fedChartP = p; draw(p); };
   init(); addEventListener('resize', function(){ init(); draw(fedChartP); });
   if(fed.track) fedChartDraw(fed.forced ? fed.step / 4 : (isMobile ? 0.12 : fedProgress()));
+  (function(){
+    var cvs = QS('#fedChart');
+    if(cvs && cvs.parentNode){
+      var nn = document.createElement('p');
+      nn.className = 'fed-note';
+      nn.textContent = '本区为概念示意动画；真实联邦训练结果（损失 / 准确率 / 留出集评估）见工作台「联邦训练」。';
+      cvs.parentNode.insertBefore(nn, cvs.nextSibling);
+    }
+  })();
 })();
 
 /* ---------- calculation demo (03 · 计算过程) ---------- */
@@ -1115,7 +1159,7 @@ if(fsParam !== null && fed.track){
     } else {
       lines.push('第 ' + k + ' 轮 · 计算开始');
       lines.push('① 下发：全局参数 w = ' + wG(k-1).toFixed(4) + ' 发往 6 家医院');
-      lines.push('② 本地训练：wᵢ ← wᵢ − η·∇Lᵢ(wᵢ)，η = ' + LR + '（各院用本院数据，互不可见）');
+      lines.push('② 本地训练：wᵢ ← wᵢ − η·∇Lᵢ(wᵢ)，η = ' + LR + '（示意步长；各院用本院数据，互不可见）');
       lines.push('③ 上传：各家仅上传参数 wᵢ 与样本数 nᵢ；合计 Σnᵢ = ' + NT);
       var terms = HOS.map(function(h, i){ return '(' + h.n + '/' + NT + ')·' + wOf(i, k).toFixed(4); });
       lines.push('④ 聚合：w = ' + terms[0] + ' + ' + terms[1] + ' + … + ' + terms[5]);
@@ -1165,11 +1209,25 @@ if(fsParam !== null && fed.track){
 var HGX = { hospital: 'A', user: '', name: '', isCenter: false };
 var HGX_CACHE = { symptoms: null, graph: null, diseases: null, fl: null };
 
+function hgxTok(){
+  try{ return sessionStorage.getItem('hg_token') || ''; }catch(e){ return ''; }
+}
+function hgxH(json){
+  var h = {};
+  if(json){ h['Content-Type'] = 'application/json'; }
+  var tk = hgxTok();
+  if(tk){ h['X-Token'] = tk; }
+  return h;
+}
 function hgxGet(p){
-  return fetch(p).then(function(r){ if(!r.ok){ throw new Error('HTTP ' + r.status); } return r.json(); });
+  return fetch(p, { headers: hgxH(false) }).then(function(r){
+    if(r.status === 401){ throw new Error('会话已失效，请重新登录后再试'); }
+    if(!r.ok){ throw new Error('HTTP ' + r.status); }
+    return r.json();
+  });
 }
 function hgxPost(p, body){
-  return fetch(p, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
+  return fetch(p, { method: 'POST', headers: hgxH(true), body: JSON.stringify(body) })
     .then(function(r){ return r.json().then(function(d){ return { status: r.status, ok: r.ok, data: d }; }); });
 }
 function hgxEsc(t){
@@ -1202,6 +1260,16 @@ function mxOpenModule(name){
 /* —— ① AI 辅助诊断（/api/symptoms + /api/diagnose · 接入联邦全局模型） —— */
 var mxPicked = [];
 var mxModelSel = 'global';
+function mxFeedback(disease, action, el){
+  hgxPost('/api/feedback', { symptoms: mxPicked.slice(), disease: disease, action: action }).then(function(r){
+    if(r.ok && r.data && r.data.ok){
+      toast((action === 'adopt' ? '已采纳并沉淀' : '已修正并沉淀') + ' · 本地样本 ' + r.data.stored + ' 条（数据不出院）');
+      if(el){ try{ el.disabled = true; }catch(e){} }
+    } else {
+      toast((r.data && r.data.error) || '提交失败');
+    }
+  }).catch(function(){ toast('提交失败：请确认登录状态'); });
+}
 function mxOpenDiag(){
   mxPicked = [];
   mxShow('AI 辅助诊断', '身份：' + HGX.name);
@@ -1282,9 +1350,20 @@ function mxOpenDiag(){
           for(var p2 = 0; p2 < Math.min(4, prev.length); p2++){ h2.push('<li>' + hgxEsc(prev[p2]) + '</li>'); }
           if(!prev.length){ h2.push('<li>—</li>'); }
           h2.push('</ul></section>');
+          var otherOpts = '';
+          for(var oi = 0; oi < arr.length; oi++){ if(arr[oi].disease !== d.disease){ otherOpts += '<option value="' + hgxEsc(arr[oi].disease) + '">' + hgxEsc(arr[oi].disease) + '</option>'; } }
+          h2.push('<div class="mx-fbrow"><span class="mx-mut">这例诊断准不准？</span>' +
+                  '<button type="button" class="btn ghost dark sm mx-fb-adopt" data-d="' + hgxEsc(d.disease) + '">采纳此诊断</button>' +
+                  '<select class="mx-fbsel" data-d="' + hgxEsc(d.disease) + '"><option value="">修正为…</option>' + otherOpts + '</select></div>');
           h2.push('</div></div>');
         }
         res.innerHTML = h2.join('');
+        Array.prototype.forEach.call(res.querySelectorAll('.mx-fb-adopt'), function(b2){
+          b2.addEventListener('click', function(){ mxFeedback(b2.getAttribute('data-d'), 'adopt', b2); });
+        });
+        Array.prototype.forEach.call(res.querySelectorAll('.mx-fbsel'), function(sel){
+          sel.addEventListener('change', function(){ if(sel.value){ mxFeedback(sel.value, 'correct', sel); sel.value = ''; } });
+        });
       }).catch(function(err){
         res.innerHTML = '<p class="mx-err">推理失败：' + hgxEsc(err && err.message || err) + '（请确认后端服务正常后重试）</p>';
       });
@@ -1307,6 +1386,7 @@ function mxOpenGraph(){
     HGX_CACHE.graphFed = out[1];
     var dis = out[2];
     mxGScope = sc;
+    mxSub.textContent = dis.length + ' 类疾病 · 本院视图 / 联邦聚合视图 · 点击左侧疾病查看关联网络';
     var ln = out[0].meta ? out[0].meta.edges_in_view : (out[0].edges || []).length;
     var fn = out[1].meta ? out[1].meta.edges_in_view : (out[1].edges || []).length;
     var add = 0, i;
@@ -1321,9 +1401,9 @@ function mxOpenGraph(){
     if(hq !== 'ALL'){
       h.push('<button type="button" class="mx-sbtn' + (sc === 'local' ? ' on' : '') + '" id="mxGS-L">本院视图（' + hgxEsc(hq) + ' 院）</button>');
       h.push('<button type="button" class="mx-sbtn' + (sc === 'fed' ? ' on' : '') + '" id="mxGS-F">联邦聚合视图</button>');
-      h.push('<span class="mx-mut">全图关联：本院 ' + ln + ' 条 / 联邦聚合 ' + fn + ' 条（+' + add + ' 条来自其他院）</span>');
+      h.push('<span class="mx-mut">全图关联：本院 ' + ln + ' 条 / 联邦聚合 ' + fn + ' 条（+' + add + ' 条来自其他院）· 贡献数据为演示示意口径</span>');
     } else {
-      h.push('<span class="mx-mut">全图关联：联邦聚合 ' + fn + ' 条 · 聚合自 6 院</span>');
+      h.push('<span class="mx-mut">全图关联：联邦聚合 ' + fn + ' 条 · 聚合自 6 院 · 贡献数据为演示示意口径</span>');
     }
     h.push('</div>');
     h.push('<div class="mx-gwrap"><div class="mx-glist" id="mxGList">');
@@ -1463,7 +1543,7 @@ function mxOpenFL(){
     var h = [];
     h.push('<p class="mx-note">六家医院各自在本地训练（数据一步不出院），只上传模型参数；服务器按样本量加权聚合出<b>全局诊断模型</b>，训练完成后自动下发到「AI 辅助诊断」模块。</p>');
     h.push('<div class="mx-flstat">' + (st && st.trained
-      ? ('<span>全局模型 <b>v' + st.version + '</b> · 训练于 ' + hgxEsc(st.trained_at || '—') + ' · <b>' + st.params + '</b> 个参数 · 六院联合样本 <b>' + st.total_samples + '</b> · 损失 <b>' + st.loss + '</b> · 准确率 <b>' + st.acc + '%</b></span>')
+      ? ('<span>全局模型 <b>v' + st.version + '</b> · 训练于 ' + hgxEsc(st.trained_at || '—') + ' · <b>' + st.params + '</b> 个参数 · 六院联合样本 <b>' + st.total_samples + '</b> · 损失 <b>' + st.loss + '</b> · 准确率 <b>' + st.acc + '%</b>' + (st.holdout_acc != null ? ' · 留出集 <b>' + st.holdout_acc + '%</b>' : '') + (st.feedback_total ? ' · 反馈样本 <b>' + st.feedback_total + '</b> 条' : '') + '</span>')
       : '<span>尚未训练：点击「再训一轮」发起首轮联邦训练</span>') + '</div>');
     var bests = fl.best_solo || null;
     h.push('<div class="mx-flcards">');
@@ -1473,10 +1553,15 @@ function mxOpenFL(){
     }
     h.push('<div class="mx-flcard mx-hl"><b>联邦全局模型</b><span class="mx-mut">' + fl.rounds + ' 轮加权聚合 · 损失 ' + fl.final.loss + ' · 准确率 ' + fl.final.acc + '%' + (bests ? '（优于最好单院 ' + bests.loss + '）' : '') + '</span></div>');
     h.push('</div>');
+    var fbs = fl.feedback_since || {}, fbTotal = 0, fbTxt = [];
+    for(var fk in fbs){ if(fbs[fk] > 0){ fbTxt.push(fk + ' 院 ' + fbs[fk]); fbTotal += fbs[fk]; } }
+    h.push('<div class="mx-flstat"><span>本轮新增医生反馈样本：' + (fbTotal ? ('<b>' + fbTotal + '</b> 条（' + fbTxt.join(' · ') + '）') : '暂无（去「AI 辅助诊断」采纳 / 修正结果即可沉淀）') + '</span></div>');
     h.push('<canvas id="mxFlCv" class="mx-canvas" height="320"></canvas>');
     h.push('<div class="mx-acts"><span class="mx-mut" id="mxFlTip">共 ' + fl.rounds + ' 轮 · 参训样本 ' + fl.total_samples + '</span>' +
            '<button class="btn primary sm" id="mxFlRetrain" type="button">再训一轮</button>' +
-           '<button class="btn ghost dark sm" id="mxFlPlay" type="button">播放训练</button></div>');
+           '<button class="btn ghost dark sm" id="mxFlPlay" type="button">播放训练</button>' +
+           '<button class="btn ghost dark sm" id="mxFlEval" type="button">评估详情</button>' +
+           '<button class="btn ghost dark sm" id="mxFlExport" type="button">导出训练日志</button></div>');
     mxBody.innerHTML = h.join('');
     var cv = QS('#mxFlCv'), tip = QS('#mxFlTip'), playBtn = QS('#mxFlPlay'), retrainBtn = QS('#mxFlRetrain');
     var dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -1554,6 +1639,48 @@ function mxOpenFL(){
         tip.textContent = '训练请求失败，请重试';
       });
     });
+    var expBtn = QS('#mxFlExport'), evalBtn = QS('#mxFlEval');
+    if(expBtn){ expBtn.addEventListener('click', function(){
+      expBtn.disabled = true;
+      fetch('/api/fl/export', { headers: hgxH(false) }).then(function(r){ if(!r.ok){ throw new Error('export failed'); } return r.blob(); }).then(function(b){
+        var a2 = document.createElement('a');
+        a2.href = URL.createObjectURL(b);
+        a2.download = 'fed_training_log.json';
+        document.body.appendChild(a2); a2.click();
+        setTimeout(function(){ URL.revokeObjectURL(a2.href); a2.remove(); }, 600);
+        expBtn.disabled = false;
+      }).catch(function(){ expBtn.disabled = false; toast('导出失败，请确认登录状态'); });
+    }); }
+    if(evalBtn){ evalBtn.addEventListener('click', function(){
+      var oldBox = QS('#mxFlEvalBox');
+      if(oldBox){ oldBox.parentNode.removeChild(oldBox); return; }
+      var ev = fl.holdout;
+      var dbx = document.createElement('div');
+      dbx.id = 'mxFlEvalBox'; dbx.className = 'mx-card';
+      if(!ev){
+        dbx.innerHTML = '<p class="mx-mut">暂无评估数据（重新训练后生成：留出集指标 + 混淆矩阵）。</p>';
+        mxBody.appendChild(dbx); return;
+      }
+      var ms = ev.per_class || [], rows2 = '';
+      for(var mi2 = 0; mi2 < ms.length; mi2++){
+        rows2 += '<tr><td>' + hgxEsc(ms[mi2].name) + '</td><td>' + ms[mi2].support + '</td><td>' + ms[mi2].precision + '%</td><td>' + ms[mi2].recall + '%</td><td>' + ms[mi2].f1 + '%</td></tr>';
+      }
+      var conf = ev.confusion || [], confHtml = '';
+      if(conf.length){
+        confHtml = '<details class="mx-conf"><summary>混淆矩阵（' + conf.length + '×' + conf.length + ' 折叠）</summary><div class="mx-confbox"><table><tr><th></th>';
+        for(var ci2 = 0; ci2 < conf.length; ci2++){ confHtml += '<th>' + (ci2 + 1) + '</th>'; }
+        confHtml += '</tr>';
+        for(var ri2 = 0; ri2 < conf.length; ri2++){
+          confHtml += '<tr><th>' + (ri2 + 1) + '</th>';
+          for(var cj2 = 0; cj2 < conf.length; cj2++){ confHtml += '<td>' + conf[ri2][cj2] + '</td>'; }
+          confHtml += '</tr>';
+        }
+        confHtml += '</table><p class="mx-mut">行 = 真实（序号对应当前病种顺序，可从导出的训练日志查看完整映射），列 = 预测。</p></div></details>';
+      }
+      dbx.innerHTML = '<div class="mx-ch"><b>留出集评估（训练不包含这些样本）</b><span class="mx-cdept">n=' + ev.n + ' · 损失 ' + ev.loss + ' · 准确率 ' + ev.acc + '%</span></div>' +
+        '<div class="mx-meta"><section><h5>分类指标（%）</h5><table class="mx-mini"><tr><th>病种</th><th>样本</th><th>精确率</th><th>召回率</th><th>F1</th></tr>' + rows2 + '</table></section></div>' + confHtml;
+      mxBody.appendChild(dbx);
+    }); }
     setTimeout(function(){ if(!played && !mxOvl.hidden){ playBtn.click(); } }, 500);
   }
 }
@@ -1585,7 +1712,7 @@ function mxOpenChat(){
     push('user', q2);
     var wait = push('a', '正在查询知识库…');
     wait.classList.add('mx-wait');
-    fetch('/api/chat', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message: q2, history: histPayload }) })
+    fetch('/api/chat', { method: 'POST', headers: hgxH(true), body: JSON.stringify({ message: q2, history: histPayload }) })
       .then(function(r){ return r.json(); })
       .then(function(d){
         var reply = (d && d.reply) || '（无回复）';
@@ -1610,17 +1737,24 @@ function mxOpenChat(){
 /* —— 工作台按钮 → 模块 —— */
 QSA('[data-module]').forEach(function(b){
   b.addEventListener('click', function(){
-    if(wbGrid.classList.contains('locked')){ toast('请先登录，再进入工作台'); return; }
-    mxOpenModule(b.getAttribute('data-module'));
+    if(wbGrid.classList.contains('locked')){ toast('请先登录，再进入应用台'); return; }
+    var m = b.getAttribute('data-module');
+    if(location.protocol.indexOf('http') === 0){ location.href = '/app#' + m; return; }
+    mxOpenModule(m);
   });
 });
-/* ?module=diag|graph|fl|chat 自动打开（演示/验收用） */
+/* ?module=diag|graph|fl|chat → 转交应用台 /app（file:// 离线时保持旧版弹窗） */
 (function(){
   var qq = new URLSearchParams(location.search);
   var m0 = qq.get('module');
-  if(m0){
-    setTimeout(function(){ if(!wbGrid.classList.contains('locked')){ mxOpenModule(m0); } }, 700);
+  if(!m0){ return; }
+  if(location.protocol.indexOf('http') === 0){
+    qq.delete('module');
+    var extra = qq.toString();
+    location.replace('/app?' + (extra ? extra + '&' : '') + 'view=' + m0 + '#' + m0);
+    return;
   }
+  setTimeout(function(){ if(!wbGrid.classList.contains('locked')){ mxOpenModule(m0); } }, 700);
 })();
 /* 会话恢复时校验后台 token（失效则本地登出；离线打开时保持本地模式） */
 (function(){
@@ -1648,6 +1782,8 @@ function mxOpenPhoto(){
   h.push('<label class="mx-drop" id="mxPhDrop"><input type="file" id="mxPhFile" accept="image/*" hidden><span class="mx-drop-ic">📷</span><span>点击选择照片（手机端可调用相机拍摄）</span><span class="mx-mut">支持 JPG / PNG，请小于 5MB</span></label>');
   h.push('<div class="mx-phprev" id="mxPhPrev" hidden><img id="mxPhImg" alt="预览"></div>');
   h.push('<div class="mx-acts"><span class="mx-mut" id="mxPhTip">未选择照片</span><button class="btn primary sm" id="mxPhGo" type="button" disabled>分析照片</button><button class="btn ghost dark sm" id="mxPhClr" type="button">清除</button></div>');
+  h.push('<div class="mx-acts" style="margin-top:2px"><button class="btn ghost dark sm" id="mxPhStatsBtn" type="button">查看伤情统计</button><span class="mx-mut">匿名统计：仅类别计数（k≥3 才展示），照片不出院</span></div>');
+  h.push('<div id="mxPhStats"></div>');
   h.push('<div class="mx-hints"><span class="mx-mut">没有照片？示例试跑：</span><button type="button" class="mx-chip" id="mxPhS1">示例 · 蚊虫叮咬</button><button type="button" class="mx-chip" id="mxPhS2">示例 · 皮肤创面</button></div>');
   h.push('<div id="mxPhRes"></div>');
   mxBody.innerHTML = h.join('');
@@ -1686,12 +1822,42 @@ function mxOpenPhoto(){
   }
   QS('#mxPhS1').addEventListener('click', function(){ loadSample('sample_bite.jpg', '示例 · 蚊虫叮咬'); });
   QS('#mxPhS2').addEventListener('click', function(){ loadSample('sample_wound.jpg', '示例 · 皮肤创面'); });
+  function fmtMasked(m){
+    if(!m){ return '—'; }
+    var keys2 = [];
+    for(var kk in (m.shown || {})){ keys2.push(kk + ' ' + m.shown[kk]); }
+    var s5 = keys2.join('、') || '暂无';
+    if(m.hidden_categories){ s5 += '（另有 ' + m.hidden_categories + ' 类少于 ' + (m.k || 3) + ' 例未展示）'; }
+    return s5;
+  }
+  QS('#mxPhStatsBtn').addEventListener('click', function(){
+    var box = QS('#mxPhStats');
+    box.innerHTML = '<div class="mx-load"><span class="mx-spin"></span> 加载统计…</div>';
+    hgxGet('/api/photo/stats').then(function(st){
+      if(!st || !st.ok){ box.innerHTML = '<p class="mx-err">统计加载失败</p>'; return; }
+      var h3 = ['<div class="mx-card"><div class="mx-ch"><b>伤情统计</b><span class="mx-cdept">' + (st.scope === 'ALL' ? '六院汇总（联邦统计）' : '本院（A–F 本地计数）') + '</span></div>'];
+      if(st.scope === 'ALL'){
+        h3.push('<div class="mx-meta"><section><h5>各院计数</h5><ul>');
+        var ph = st.per_hospital || [];
+        for(var i2 = 0; i2 < ph.length; i2++){ h3.push('<li>' + hgxEsc(ph[i2].hospital) + ' 院：' + ph[i2].total + ' 例</li>'); }
+        h3.push('</ul></section>');
+        var ag = st.aggregate || {};
+        h3.push('<section><h5>汇总分布（k-匿名）</h5><p>伤情：' + fmtMasked(ag.wound) + '</p><p>叮咬来源：' + fmtMasked(ag.insect) + '</p><p>分级：' + fmtMasked(ag.level) + '</p></section></div>');
+      } else {
+        h3.push('<div class="mx-meta"><section><h5>伤情类型</h5><p>' + fmtMasked(st.wound) + '</p></section>' +
+          '<section><h5>叮咬来源</h5><p>' + fmtMasked(st.insect) + '</p></section>' +
+          '<section><h5>处置分级</h5><p>' + fmtMasked(st.level) + '</p></section></div>');
+      }
+      h3.push('</div>');
+      box.innerHTML = h3.join('');
+    }).catch(function(){ box.innerHTML = '<p class="mx-err">统计加载失败（需登录后使用）</p>'; });
+  });
   function runPhoto(){
     if(!mxPhotoFile){ toast('请先选择或载入一张照片'); return; }
     var res = QS('#mxPhRes');
     res.innerHTML = '<div class="mx-load"><span class="mx-spin"></span> 正在分析（视觉模型观察 + 知识库匹配，约 10–20 秒）…</div>';
     go.disabled = true;
-    fetch('/api/photo/analyze', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ image: mxPhotoFile }) })
+    fetch('/api/photo/analyze', { method: 'POST', headers: hgxH(true), body: JSON.stringify({ image: mxPhotoFile }) })
       .then(function(r){ return r.json(); })
       .then(function(d){
         go.disabled = false;
@@ -1742,6 +1908,9 @@ function mxOpenPhoto(){
           for(var ri = 0; ri < reds.length; ri++){ h2.push('<li>' + hgxEsc(reds[ri]) + '</li>'); }
           h2.push('</ul></div>');
         }
+        if(d.counted){
+          h2.push('<p class="mx-mut" style="font-size:.74rem;margin-top:8px">已匿名计入本院统计（' + hgxEsc(d.counted_hospital || '') + ' 院 · 类别计数，照片不出院）</p>');
+        }
         h2.push('<p class="mx-mut" style="font-size:.74rem;margin-top:8px">' + hgxEsc(d.disclaimer || '结果仅供参考，不构成诊断。') + '</p>');
         h2.push('</div>');
         res.innerHTML = h2.join('');
@@ -1778,8 +1947,10 @@ function applyLogin(u){
   wbGrid.classList.remove('locked'); wbGrid.classList.add('unlocked');
   wbBar.classList.add('on');
   wbBarName.textContent = '当前身份：' + a.n + ' · ' + (a.center ? '联邦中心账号' : '机构账号');
-  QS('#navLogin').textContent = '已登录 · ' + a.n;
+  QS('#navLogin').textContent = '进入应用台 →';
+  QS('#navLogin').setAttribute('href', '/app');
   try{ sessionStorage.setItem('hg_user', u); }catch(e){}
+  try{ mxLoadLandFed(); }catch(e){}
   return true;
 }
 function resetLoginUI(){
@@ -1787,8 +1958,9 @@ function resetLoginUI(){
   if(lu) lu.value = ''; if(lp) lp.value = '';
   wbGrid.classList.add('locked'); wbGrid.classList.remove('unlocked');
   wbBar.classList.remove('on');
-  wbBarName.textContent = '当前未登录 · 登录后启用工作台';
+  wbBarName.textContent = '当前未登录 · 登录后进入应用台';
   QS('#navLogin').textContent = '账户登录';
+  QS('#navLogin').setAttribute('href', '#login');
 }
 function shakeForm(){ form.classList.remove('form-shake'); void form.offsetWidth; form.classList.add('form-shake'); }
 
@@ -1811,9 +1983,11 @@ form.addEventListener('submit', async function(ev){
   if(lBtn2){ lBtn2.disabled = false; }
   if(res.mode === 'server' && res.ok){
     try{ sessionStorage.setItem('hg_token', res.data.token); }catch(e){}
+    try{ localStorage.setItem('hg_token', res.data.token); }catch(e){}
     lerr.textContent = '';
     applyLogin(u);
-    toast('登录成功（后台鉴权通过），欢迎 ' + (res.data.user && res.data.user.name ? res.data.user.name : u));
+    toast('登录成功，正在进入应用台…');
+    setTimeout(function(){ location.href = '/app'; }, 600);
     return;
   }
   if(res.mode === 'server' && !res.ok){
@@ -1835,21 +2009,29 @@ QSA('.chip[data-u]').forEach(function(c){
 });
 QS('#logoutBtn').addEventListener('click', function(){
   try{
-    var tk = sessionStorage.getItem('hg_token');
+    var tk = sessionStorage.getItem('hg_token') || localStorage.getItem('hg_token');
     if(tk){ fetch('/api/logout', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({token: tk})}).catch(function(){}); }
     sessionStorage.removeItem('hg_user'); sessionStorage.removeItem('hg_token');
+    localStorage.removeItem('hg_token');
   }catch(e){}
   resetLoginUI(); location.hash = '#login'; toast('已退出登录');
 });
 /* auto login (演示/截图用 ?autologin=zhongxin) + session restore */
 var autoU = q.get('autologin');
-if(autoU && ACCOUNTS[autoU]){ applyLogin(autoU); }
-else { try{ var sv = sessionStorage.getItem('hg_user'); if(sv && ACCOUNTS[sv]) applyLogin(sv); }catch(e){} }
+if(autoU && ACCOUNTS[autoU]){
+  applyLogin(autoU);
+  serverLogin(autoU, ACCOUNTS[autoU].p).then(function(res){
+    if(res.mode === 'server' && res.ok){
+      try{ sessionStorage.setItem('hg_token', res.data.token); }catch(e){}
+      try{ mxLoadLandFed(); }catch(e){}
+    }
+  });
+} else { try{ var sv = sessionStorage.getItem('hg_user'); if(sv && ACCOUNTS[sv]) applyLogin(sv); }catch(e){} }
 
 /* ---------- workbench interactions ---------- */
 QSA('[data-toast]').forEach(function(b){
   b.addEventListener('click', function(){
-    if(wbGrid.classList.contains('locked')){ toast('请先登录，再进入工作台'); return; }
+    if(wbGrid.classList.contains('locked')){ toast('请先登录，再进入应用台'); return; }
     toast(b.getAttribute('data-toast'));
   });
 });
@@ -1926,7 +2108,7 @@ QSA('[data-toast]').forEach(function(b){
     if(running) return;
     if(!FL_REAL && !FL_TRYING){
       FL_TRYING = true; st.textContent = '正在连接后端算法…';
-      fetch('/api/fl/train').then(function(r){ return r.json(); }).then(function(d){ FL_REAL = d; FL_TRYING = false; startAnim(); }).catch(function(){ FL_TRYING = false; st.textContent = '后端未连接 · 使用本地演示'; startAnim(); });
+      fetch('/api/fl/train', { headers: hgxH(false) }).then(function(r){ return r.json(); }).then(function(d){ FL_REAL = d; FL_TRYING = false; startAnim(); }).catch(function(){ FL_TRYING = false; st.textContent = '需登录后使用真实算法 · 使用本地演示'; startAnim(); }).catch(function(){ FL_TRYING = false; st.textContent = '后端未连接 · 使用本地演示'; startAnim(); });
       return;
     }
     startAnim();
