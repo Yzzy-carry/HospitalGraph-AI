@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-联邦医院知识图谱AI — Flask + MySQL 后端（v4.7 应用台版）
+联邦医院知识图谱AI — Flask + MySQL 后端（v4.8 病历档案版）
 - 应用台：/app（侧栏导航 + 登录/注册 + 移动端直达）
 - 图谱：本院视图 / 联邦聚合视图（各院贡献可见，含示意口径标注）
 - 诊断：接入联邦全局模型（真 FedAvg · 版本化 · 可切回基础公式）
@@ -1239,6 +1239,14 @@ def api_feedback():
         _FEEDBACK[hid] = _FEEDBACK[hid][-500:]
     _FB_SINCE[hid] = _FB_SINCE.get(hid, 0) + 1
     _save_aux()
+    try:
+        _patient_add_record(acc["username"], {
+            "date": _ftime.strftime("%Y-%m-%d"), "dept": "线上服务",
+            "title": ("采纳诊断 · " if action == "adopt" else "修正诊断 · ") + disease.strip(),
+            "detail": "症状：" + "、".join(symptoms[:8]) + "；结论：" + disease.strip(),
+        })
+    except Exception as _pe:
+        print("[v4.8] 档案写入失败：%s" % _pe)
     if _feishu:
         _feishu.notify_feedback(acc, item, len(_FEEDBACK[hid]))
     return jsonify({"ok": True, "hospital": hid, "stored": len(_FEEDBACK[hid]),
@@ -1681,9 +1689,491 @@ def _photo_rules(vl):
         "insects": [{"name": i["name"], "feature": i["feature"], "scene": i["scene"], "care": i["care"], "alert": i["alert"]} for i in insects],
     }
 
+# （v4.8：拍照分析接口已升级——全过程步骤 / 相似病例对比 / 历史记忆 / 自动落档；完整实现见文件尾部「v4.8 病历档案 + 拍照分析升级」章节）
 
-_PHOTO_CACHE = {}
 
+
+@app.route("/sample/<fn>")
+def photo_sample(fn):
+    if fn not in ("sample_wound.jpg", "sample_bite.jpg", "sample_scalp.jpg", "sample_arm.jpg"):
+        return ("not found", 404)
+    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), fn)
+    if not os.path.exists(p):
+        return ("not found", 404)
+    with open(p, "rb") as f:
+        data = f.read()
+    return app.response_class(data, mimetype="image/jpeg")
+
+
+# ============================================================
+# v4.8 病历档案 + 拍照分析升级（全过程可见 / 病例对比 / 历史记忆）
+# ============================================================
+# 说明：
+# - 病历档案：data/patients.json（演示合成数据）+ 账号绑定；身份核验 → 认领既往记录
+# - 拍照升级：data/photo_cases.json（示范病例库）+ data/photo_history.json（个人历史）
+# - 原 /api/photo/analyze 已迁移到本章节（全过程步骤 + 相似病例 + 历史对比 + 自动落档）
+import base64 as _b64
+import io as _io
+
+try:
+    from PIL import Image as _PImg, ImageFilter as _PImgF
+except Exception:
+    _PImg = None
+    _PImgF = None
+
+_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+_PATIENTS_FILE = os.path.join(_BASE_DIR, "data", "patients.json")
+_CASES_FILE = os.path.join(_BASE_DIR, "data", "photo_cases.json")
+_PHOTOHIST_FILE = os.path.join(_BASE_DIR, "data", "photo_history.json")
+_PHOTOS_DIR = os.path.join(_BASE_DIR, "data", "photos")
+
+_PATIENTS = {"note": "", "patients": [], "bindings": {}}
+_CASES = {"note": "", "confusions": [], "sample_hints": [], "cases": []}
+_PHOTOHIST = {"note": "", "seq": 0, "items": []}
+_V48_VL_CACHE = {}
+
+
+def _v48_load_json(path, default):
+    try:
+        if os.path.exists(path):
+            with open(path, encoding="utf-8") as f:
+                return _fjson.load(f)
+    except Exception as e:
+        print("[v4.8] 读取失败 %s：%s" % (os.path.basename(path), e))
+    return default
+
+
+def _patients_load():
+    global _PATIENTS
+    blob = _v48_load_json(_PATIENTS_FILE, None)
+    if isinstance(blob, dict):
+        blob.setdefault("patients", [])
+        blob.setdefault("bindings", {})
+        _PATIENTS = blob
+        print("[v4.8] 已加载病历档案：%d 份（已绑定 %d 个账号）" % (len(_PATIENTS["patients"]), len(_PATIENTS["bindings"])))
+
+
+def _patients_save():
+    try:
+        _atomic_write(_PATIENTS_FILE, _PATIENTS)
+    except Exception as e:
+        print("[v4.8] 档案保存失败：%s" % e)
+
+
+def _cases_load():
+    global _CASES
+    blob = _v48_load_json(_CASES_FILE, None)
+    if isinstance(blob, dict):
+        blob.setdefault("cases", [])
+        blob.setdefault("confusions", [])
+        blob.setdefault("sample_hints", [])
+        _CASES = blob
+        print("[v4.8] 已加载示范病例库：%d 例" % len(_CASES["cases"]))
+
+
+def _photohist_load():
+    global _PHOTOHIST
+    blob = _v48_load_json(_PHOTOHIST_FILE, None)
+    if isinstance(blob, dict):
+        blob.setdefault("items", [])
+        blob.setdefault("seq", 0)
+        _PHOTOHIST = blob
+
+
+def _photohist_save():
+    try:
+        _atomic_write(_PHOTOHIST_FILE, _PHOTOHIST)
+    except Exception as e:
+        print("[v4.8] 拍照历史保存失败：%s" % e)
+
+
+def _v48_patient_of(user):
+    pid = (_PATIENTS.get("bindings") or {}).get(user or "")
+    if not pid:
+        return None
+    for p in _PATIENTS.get("patients", []):
+        if p.get("pid") == pid:
+            return p
+    return None
+
+
+def _v48_mask_phone(ph):
+    s = str(ph or "")
+    if len(s) >= 11:
+        return s[:3] + "****" + s[-4:]
+    return s
+
+
+def _v48_patient_public(p):
+    return {
+        "pid": p.get("pid"), "name": p.get("name"), "sex": p.get("sex"),
+        "birth_year": p.get("birth_year"), "phone": _v48_mask_phone(p.get("phone")),
+        "tags": p.get("tags") or [], "created": p.get("created"),
+        "history": list(p.get("history") or []),
+    }
+
+
+def _patient_add_record(user, rec):
+    """向当前账号绑定档案追加一条记录（诊断采纳 / 拍照分析等）。返回是否成功。"""
+    p = _v48_patient_of(user)
+    if not p:
+        return False
+    rec = dict(rec)
+    rec.setdefault("date", _ftime.strftime("%Y-%m-%d"))
+    hist = p.setdefault("history", [])
+    hist.append(rec)
+    if len(hist) > 80:
+        del hist[0:len(hist) - 80]
+    _patients_save()
+    return True
+
+
+# ---------- 图片工具（演示级近似指标） ----------
+
+def _v48_b64_image(img_data_url):
+    try:
+        head, _, b64 = img_data_url.partition(",")
+        raw = _b64.b64decode(b64)
+        low = head.lower()
+        ext = "jpg"
+        if "png" in low:
+            ext = "png"
+        elif "webp" in low:
+            ext = "webp"
+        return raw, ext, None
+    except Exception as e:
+        return None, None, str(e)[:120]
+
+
+def _v48_metrics(raw):
+    if _PImg is None:
+        return None
+    try:
+        im = _PImg.open(_io.BytesIO(raw)).convert("RGB")
+    except Exception:
+        return None
+    w, h = im.size
+    sample = im
+    if max(w, h) > 480:
+        k = 480.0 / max(w, h)
+        sample = im.resize((max(1, int(w * k)), max(1, int(h * k))), _PImg.LANCZOS)
+    px = sample.load()
+    sw, sh = sample.size
+    n = max(1, sw * sh)
+    tot = 0
+    red = 0
+    sumr = sumg = sumb = 0
+    for y in range(sh):
+        for x in range(sw):
+            r, g, b = px[x, y]
+            sumr += r; sumg += g; sumb += b
+            tot += (r * 299 + g * 587 + b * 114) // 1000
+            if r - max(g, b) > 22:
+                red += 1
+    edge = 0
+    try:
+        gray = sample.convert("L").filter(_PImgF.FIND_EDGES)
+        ep = gray.load()
+        se = 0
+        for y in range(1, sh - 1):
+            for x in range(1, sw - 1):
+                se += ep[x, y]
+        edge = se // max(1, (sw - 2) * (sh - 2))
+    except Exception:
+        edge = 0
+    return {
+        "w": w, "h": h,
+        "brightness": int(tot // n),
+        "redness": round(red * 100.0 / n, 1),
+        "edge": int(edge),
+        "avg": [int(sumr // n), int(sumg // n), int(sumb // n)],
+    }
+
+
+def _v48_quality(metrics, kb):
+    q = []
+    lvl = "良好"
+    if metrics:
+        b = metrics["brightness"]
+        if b < 60:
+            q.append("照片偏暗，建议在光线充足处重拍")
+            lvl = "一般"
+        elif b > 205:
+            q.append("照片偏亮 / 过曝，细节可能丢失")
+            lvl = "一般"
+        else:
+            q.append("亮度适中")
+        if metrics["edge"] < 6:
+            q.append("图像较平滑（可能虚焦或距离过近）")
+            lvl = "一般"
+        elif metrics["edge"] > 60:
+            q.append("纹理丰富（细节清晰）")
+        else:
+            q.append("清晰度可用")
+        if kb > 6000:
+            q.append("尺寸较大，已按需压缩处理")
+    else:
+        q.append("未能解析图像细节（服务未就绪）")
+    return {"level": lvl, "items": q}
+
+
+def _v48_case_match(text, limit=3):
+    t = str(text or "")
+    scored = []
+    for c in _CASES.get("cases", []):
+        hits = [tg for tg in (c.get("tags") or []) if tg and (tg in t)]
+        if hits:
+            scored.append({"id": c.get("id"), "name": c.get("name"), "hits": hits[:6], "score": len(hits), "src": "text"})
+    scored.sort(key=lambda x: -x["score"])
+    strong = [s for s in scored if s["score"] >= 2]
+    return strong[:limit] if strong else scored[:2]
+
+
+def _v48_sample_hint(mk):
+    out = []
+    for sh in _CASES.get("sample_hints") or []:
+        if sh.get("md5") and sh.get("md5") == mk:
+            for cid in (sh.get("cases") or []):
+                c = next((x for x in _CASES.get("cases", []) if x.get("id") == cid), None)
+                if c:
+                    out.append({"id": c["id"], "name": c["name"], "hits": ["示例预置匹配"],
+                                "score": 9, "src": "sample", "note": sh.get("note") or ""})
+    return out
+
+
+def _v48_confusion(case_ids):
+    ids = set(case_ids or [])
+    for cf in _CASES.get("confusions") or []:
+        if cf.get("a") in ids and cf.get("b") in ids:
+            return cf
+    return None
+
+
+def _v48_case_public(cid):
+    c = next((x for x in _CASES.get("cases", []) if x.get("id") == cid), None)
+    if not c:
+        return None
+    return {"id": c.get("id"), "name": c.get("name"), "image": "/static/cases/" + str(c.get("file") or ""),
+            "tags": c.get("tags") or [], "features": c.get("features"), "diff": c.get("diff"), "care": c.get("care")}
+
+
+def _v48_history_compare(user, metrics):
+    items = [it for it in _PHOTOHIST.get("items", []) if it.get("user") == user]
+    items = sorted(items, key=lambda x: x.get("ts") or 0, reverse=True)
+    prev = items[0] if items else None
+    if not prev or not metrics:
+        return {"prev": None, "deltas": {}, "note": ""}
+    pm = prev.get("metrics") or {}
+    deltas = {}
+    note = []
+    try:
+        a = float(pm.get("redness") or 0)
+        b = float(metrics.get("redness") or 0)
+        if a > 0.5:
+            d = round((b - a) * 100.0 / a, 1)
+            deltas["redness"] = d
+            if d <= -12:
+                note.append("红色区域较上次减少 %.0f%%（图像指标，疑似好转趋势）" % abs(d))
+            elif d >= 12:
+                note.append("红色区域较上次增加 %.0f%%，建议留意变化" % d)
+            else:
+                note.append("红色区域与上次基本相当")
+        a2 = float(pm.get("edge") or 0)
+        b2 = float(metrics.get("edge") or 0)
+        if a2 > 0.5:
+            deltas["edge"] = round((b2 - a2) * 100.0 / a2, 1)
+    except Exception:
+        pass
+    if not note:
+        note.append("与上次记录的图像指标基本持平")
+    return {
+        "prev": {"id": prev.get("id"), "time": prev.get("time"), "top": prev.get("top"), "level": prev.get("level")},
+        "deltas": deltas,
+        "note": "；".join(note) + "（演示级近似，仅供趋势参考）",
+    }
+
+
+def _v48_save_photo(user, raw, ext):
+    try:
+        d = os.path.join(_PHOTOS_DIR, user)
+        os.makedirs(d, exist_ok=True)
+        fn = "%s_%s.%s" % (_ftime.strftime("%Y%m%d_%H%M%S"), _uuid.uuid4().hex[:6],
+                           ext if ext in ("jpg", "png", "webp") else "jpg")
+        with open(os.path.join(d, fn), "wb") as f:
+            f.write(raw)
+        return user + "/" + fn
+    except Exception as e:
+        print("[v4.8] 照片保存失败：%s" % e)
+        return None
+
+
+def _v48_add_history(user, raw, ext, top, level, metrics, case_names):
+    rel = _v48_save_photo(user, raw, ext)
+    if not rel:
+        return None
+    _PHOTOHIST["seq"] = int(_PHOTOHIST.get("seq") or 0) + 1
+    item = {"id": "h%04d" % _PHOTOHIST["seq"], "user": user, "ts": int(_ftime.time()),
+            "time": _ftime.strftime("%Y-%m-%d %H:%M"), "top": top, "level": level,
+            "cases": case_names, "metrics": metrics, "file": rel}
+    items = _PHOTOHIST.setdefault("items", [])
+    items.append(item)
+    if len(items) > 500:
+        _PHOTOHIST["items"] = items[-500:]
+    _photohist_save()
+    return item
+
+
+# ---------- 病历档案接口 ----------
+
+@app.route("/api/patient/match", methods=["POST", "OPTIONS"])
+def api_patient_match():
+    if request.method == "OPTIONS":
+        return ("", 204)
+    acc = _sess(request)
+    if not acc:
+        return _deny()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"ok": False, "error": "请求体必须为 JSON 对象"}), 400
+    name = str(data.get("name") or "").strip()
+    phone = str(data.get("phone") or "").strip()
+    if not name or not phone:
+        return jsonify({"ok": False, "error": "请填写姓名与手机号后进行核验"}), 400
+    if len(name) > 20 or len(phone) > 20:
+        return jsonify({"ok": False, "error": "输入过长"}), 400
+    hit = None
+    name_only = False
+    for p in _PATIENTS.get("patients", []):
+        if p.get("name") == name:
+            if p.get("phone") == phone:
+                hit = p
+                break
+            name_only = True
+    cur_pid = (_PATIENTS.get("bindings") or {}).get(acc["username"])
+    if not hit:
+        hint = "姓名存在就诊记录，但手机号不匹配——请核对后重试" if name_only else "未找到匹配档案，可建立新档案"
+        return jsonify({"ok": True, "matched": False, "hint": hint, "already_bound": bool(cur_pid)})
+    return jsonify({"ok": True, "matched": True, "already_bound": bool(cur_pid), "patient": _v48_patient_public(hit)})
+
+
+@app.route("/api/patient/bind", methods=["POST", "OPTIONS"])
+def api_patient_bind():
+    if request.method == "OPTIONS":
+        return ("", 204)
+    acc = _sess(request)
+    if not acc:
+        return _deny()
+    data = request.get_json(silent=True) or {}
+    pid = str(data.get("pid") or "").strip()
+    p = next((x for x in _PATIENTS.get("patients", []) if x.get("pid") == pid), None)
+    if not p:
+        return jsonify({"ok": False, "error": "档案不存在"}), 404
+    _PATIENTS.setdefault("bindings", {})[acc["username"]] = pid
+    _patients_save()
+    return jsonify({"ok": True, "bound": True, "patient": _v48_patient_public(p)})
+
+
+@app.route("/api/patient/create", methods=["POST", "OPTIONS"])
+def api_patient_create():
+    if request.method == "OPTIONS":
+        return ("", 204)
+    acc = _sess(request)
+    if not acc:
+        return _deny()
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"ok": False, "error": "请求体必须为 JSON 对象"}), 400
+    name = str(data.get("name") or "").strip()[:20]
+    sex = str(data.get("sex") or "").strip()
+    phone = str(data.get("phone") or "").strip()[:20]
+    try:
+        by = int(data.get("birth_year") or 0)
+    except Exception:
+        by = 0
+    if not name:
+        return jsonify({"ok": False, "error": "请填写姓名"}), 400
+    if sex not in ("男", "女", "未填"):
+        sex = "未填"
+    if not (1900 <= by <= 2026):
+        by = 0
+    seq = 9000
+    for x in _PATIENTS.get("patients", []):
+        m = _re.match(r"^P(\d+)$", str(x.get("pid") or ""))
+        if m:
+            seq = max(seq, int(m.group(1)))
+    pid = "P%d" % (seq + 1)
+    p = {"pid": pid, "name": name, "sex": sex, "birth_year": by, "phone": phone,
+         "created": _ftime.strftime("%Y-%m-%d"), "tags": [],
+         "history": [{"date": _ftime.strftime("%Y-%m-%d"), "dept": "线上服务",
+                      "title": "新建档案", "detail": "由用户自助建立的演示档案。"}]}
+    _PATIENTS.setdefault("patients", []).append(p)
+    _PATIENTS.setdefault("bindings", {})[acc["username"]] = pid
+    _patients_save()
+    return jsonify({"ok": True, "bound": True, "patient": _v48_patient_public(p)})
+
+
+@app.route("/api/patient/unbind", methods=["POST", "OPTIONS"])
+def api_patient_unbind():
+    if request.method == "OPTIONS":
+        return ("", 204)
+    acc = _sess(request)
+    if not acc:
+        return _deny()
+    (_PATIENTS.get("bindings") or {}).pop(acc["username"], None)
+    _patients_save()
+    return jsonify({"ok": True, "bound": False})
+
+
+@app.route("/api/patient/me")
+def api_patient_me():
+    acc = _sess(request)
+    if not acc:
+        return _deny()
+    user = acc["username"]
+    items = [it for it in _PHOTOHIST.get("items", []) if it.get("user") == user]
+    items = sorted(items, key=lambda x: x.get("ts") or 0, reverse=True)
+    photos = [{"id": it.get("id"), "ts": it.get("ts"), "time": it.get("time"), "top": it.get("top"),
+               "level": it.get("level"), "metrics": it.get("metrics")} for it in items[:12]]
+    p = _v48_patient_of(user)
+    if not p:
+        return jsonify({"ok": True, "bound": False, "photos": photos, "photo_count": len(items)})
+    return jsonify({"ok": True, "bound": True, "patient": _v48_patient_public(p),
+                    "photos": photos, "photo_count": len(items)})
+
+
+# ---------- 病例库 / 历史图片接口 ----------
+
+@app.route("/api/photo/cases")
+def api_photo_cases():
+    acc = _sess(request)
+    if not acc:
+        return _deny()
+    cases = [_v48_case_public(c.get("id")) for c in _CASES.get("cases", [])]
+    cases = [c for c in cases if c]
+    return jsonify({"ok": True, "cases": cases, "confusions": _CASES.get("confusions") or [],
+                    "note": _CASES.get("note") or ""})
+
+
+@app.route("/api/photo/image/<iid>")
+def api_photo_image(iid):
+    acc = _sess(request)
+    if not acc:
+        return _deny()
+    it = next((x for x in _PHOTOHIST.get("items", [])
+               if str(x.get("id")) == str(iid) and x.get("user") == acc["username"]), None)
+    if not it or not it.get("file"):
+        return ("not found", 404)
+    p = os.path.normpath(os.path.join(_PHOTOS_DIR, it["file"]))
+    if not p.startswith(os.path.normpath(_PHOTOS_DIR)):
+        return ("bad request", 400)
+    if not os.path.exists(p):
+        return ("not found", 404)
+    with open(p, "rb") as f:
+        data = f.read()
+    return app.response_class(data, mimetype="image/jpeg")
+
+
+# ---------- 拍照分析（v4.8 升级版） ----------
 
 @app.route("/api/photo/analyze", methods=["POST", "OPTIONS"])
 def api_photo_analyze():
@@ -1700,58 +2190,154 @@ def api_photo_analyze():
         return jsonify({"ok": False, "error": "请提供图片（data:image/... base64 格式）"}), 400
     if len(img) > 8000000:
         return jsonify({"ok": False, "error": "图片过大，请压缩后重试（建议小于 5MB）"}), 400
-    ck = _hashlib.md5(img.encode("utf-8")).hexdigest()
-    if ck in _PHOTO_CACHE:
-        return jsonify(_PHOTO_CACHE[ck])
-    prompt = ("这是一张皮肤患处照片。请只输出 JSON（不要其他文字）："
-              '{"condition":"皮肤表现的一句话描述","likely_cause":["若疑似叮咬，列出可能的昆虫来源，最多3个；否则空数组"],'
-              '"confidence":"推断置信度 低/中/高","severity":"轻度/中度/重度","features":["观察到的主要特征，2-6条"],'
-              '"advice_level":"自行处理/建议就医/尽快就医","red_flags":["需要警惕的情况，0-4条"],"note":"一句话补充"}')
-    try:
-        resp = _requests.post(
-            BAILIAN_API_URL,
-            headers={"Authorization": "Bearer " + BAILIAN_API_KEY, "Content-Type": "application/json"},
-            json={"model": "qwen-vl-plus", "messages": [{"role": "user", "content": [
-                {"type": "text", "text": prompt},
-                {"type": "image_url", "image_url": {"url": img}}]}], "temperature": 0.2},
-            timeout=120,
-        )
-        if resp.status_code != 200:
-            return jsonify({"ok": False, "error": "视觉分析服务暂时不可用（HTTP " + str(resp.status_code) + "）"}), 502
-        content = resp.json()["choices"][0]["message"]["content"]
-        vl = _photo_json(content) or {"condition": (content or "")[:120], "features": [], "advice_level": "自行处理"}
-    except Exception as e:
-        return jsonify({"ok": False, "error": "分析调用失败：" + str(e)[:150]}), 500
-    rules = _photo_rules(vl)
+    user = acc["username"]
+    raw, ext, err = _v48_b64_image(img)
+    if err or not raw:
+        return jsonify({"ok": False, "error": "图片解析失败，请重新选择照片"}), 400
+    mk = _hashlib.md5(raw).hexdigest()
+    kb = int(len(raw) / 1024)
+
+    # ① 图像接收 + 指标
+    metrics = _v48_metrics(raw)
+    size_txt = ("%d×%d · %d KB" % (metrics["w"], metrics["h"], kb)) if metrics else ("%d KB" % kb)
+
+    # ② 质量检查
+    quality = _v48_quality(metrics, kb)
+
+    # ③ 智能识别（在线 VL / 本地降级）
+    vl = None
+    engine = {"mode": "fallback", "model": None,
+              "detail": "云端视觉识别未连接，已降级为本地基础检查（质量检查与病例库仍可用，历史对比不受影响）"}
+    if mk in _V48_VL_CACHE:
+        vl = _V48_VL_CACHE[mk]
+        engine = {"mode": "vl", "model": "qwen-vl-plus", "detail": "识别引擎：通义千问 VL（命中缓存）"}
+    else:
+        prompt = ("这是一张皮肤患处照片。请只输出 JSON（不要其他文字）："
+                  '{"condition":"皮肤表现的一句话描述","likely_cause":["若疑似叮咬，列出可能的昆虫来源，最多3个；否则空数组"],'
+                  '"confidence":"推断置信度 低/中/高","severity":"轻度/中度/重度",'
+                  '"features":["观察到的主要特征（颜色 / 边界 / 鳞屑 / 分布等特点），2-6条"],'
+                  '"advice_level":"自行处理/建议就医/尽快就医","red_flags":["需要警惕的情况，0-4条"],"note":"一句话补充"}')
+        try:
+            resp = _requests.post(
+                BAILIAN_API_URL,
+                headers={"Authorization": "Bearer " + BAILIAN_API_KEY, "Content-Type": "application/json"},
+                json={"model": "qwen-vl-plus", "messages": [{"role": "user", "content": [
+                    {"type": "text", "text": prompt},
+                    {"type": "image_url", "image_url": {"url": img}}]}], "temperature": 0.2},
+                timeout=120,
+            )
+            if resp.status_code == 200:
+                content = resp.json()["choices"][0]["message"]["content"]
+                vl = _photo_json(content) or {"condition": (content or "")[:120], "features": [], "advice_level": "自行处理"}
+                _V48_VL_CACHE[mk] = vl
+                engine = {"mode": "vl", "model": "qwen-vl-plus", "detail": "识别引擎：通义千问 VL（在线）"}
+            else:
+                engine["detail"] = "云端识别服务返回 HTTP %s，已降级为本地基础检查" % resp.status_code
+        except Exception as e:
+            engine["detail"] = "云端识别调用失败（%s），已降级为本地基础检查" % str(e)[:80]
+
+    # 规则层（保留原知识库逻辑；降级时补充通用提示）
+    if vl is not None:
+        rules = _photo_rules(vl)
+    else:
+        rules = _photo_rules({})
+        rules["care"] = ["保持局部清洁，避免抓挠与热水刺激", "观察 48 小时变化；如加重，建议就医评估"]
+
+    # ④ 病例匹配（示例图预置匹配 + 描述特征匹配）
+    if vl is not None:
+        text_pool = " ".join([str(vl.get("condition") or "")] + [str(x) for x in (vl.get("features") or [])]
+                             + [str(x) for x in (vl.get("likely_cause") or [])] + [str(vl.get("note") or "")])
+    else:
+        text_pool = ""
+    seen = set()
+    matched = []
+    for m0 in _v48_sample_hint(mk) + _v48_case_match(text_pool):
+        if m0["id"] in seen:
+            continue
+        seen.add(m0["id"])
+        matched.append(m0)
+    matched = matched[:3]
+    matched_pub = []
+    for m0 in matched:
+        cp = _v48_case_public(m0["id"])
+        if cp:
+            cp["hits"] = m0.get("hits") or []
+            cp["score"] = m0.get("score")
+            cp["src"] = m0.get("src")
+            matched_pub.append(cp)
+    confusion = _v48_confusion([m0["id"] for m0 in matched])
+
+    # ⑤ 历史对比（个人记忆）
+    hist = _v48_history_compare(user, metrics)
+    compare_desc = hist["note"] if hist.get("prev") else "暂无个人历史记录，本次将作为第一条记录存档"
+    if confusion:
+        compare_desc += "；重点鉴别：" + str(confusion.get("title") or "")
+
+    # ⑥⑦ 常规解读 + 落档
+    top_label = matched_pub[0]["name"] if matched_pub else str((vl or {}).get("condition") or "皮肤表现")[:24]
+    saved = None
+    if metrics is not None:
+        saved = _v48_add_history(user, raw, ext, top_label, rules["level"], metrics, [m0["id"] for m0 in matched])
+    pat = _v48_patient_of(user)
+    if pat is not None and saved is not None:
+        try:
+            _patient_add_record(user, {"date": _ftime.strftime("%Y-%m-%d"), "dept": "线上服务",
+                                       "title": "拍照分析 · " + str(top_label),
+                                       "detail": "分析处置建议：%s；结果与图片已存档，可用于后续对比。" % rules["level"]})
+        except Exception as _pe:
+            print("[v4.8] 档案写入失败：%s" % _pe)
+
+    steps = [
+        {"id": "recv", "title": "图像接收", "detail": "已接收照片：" + size_txt + "（" + _ftime.strftime("%H:%M:%S") + "）"},
+        {"id": "quality", "title": "质量检查", "detail": "质量评级：" + quality["level"] + " · " + "；".join(quality["items"][:3])},
+        {"id": "identify", "title": "智能识别", "detail": engine["detail"]},
+        {"id": "match", "title": "病例匹配",
+         "detail": ("命中相似示范病例 %d 例：%s" % (len(matched_pub), "、".join([m0["name"] for m0 in matched_pub])))
+                   if matched_pub else "未命中高相似病例（可浏览下方示范病例库）"},
+        {"id": "compare", "title": "对比分析", "detail": compare_desc},
+        {"id": "advice", "title": "常规解读", "detail": "已生成护理建议 / 用药参考 / 就医分级（见下方卡片）"},
+        {"id": "save", "title": "结果落档",
+         "detail": ("已存入" + (("【" + str(pat.get("name")) + "】的") if pat else "") + "拍照历史" +
+                    ("，并关联健康档案" if (pat is not None and saved) else "") + "，后续分析可自动对比")
+                   if saved else "图片未存档（图像解析异常）"},
+    ]
+
     result = {
-        "ok": True, "analysis": vl, "mapped": rules["mapped"], "level": rules["level"],
-        "care": rules["care"], "meds": rules["meds"], "red_flags": rules["red_flags"],
-        "insects": rules["insects"], "disclaimer": _PHOTO_DISCLAIMER,
+        "ok": True,
+        "v48": True,
+        "engine": engine,
+        "quality": quality,
+        "metrics": metrics,
+        "steps": steps,
+        "cases": {"matched": matched_pub, "confusion": confusion, "total": len(_CASES.get("cases", []))},
+        "history": hist,
+        "saved": ({"id": saved["id"], "time": saved["time"], "linked_patient": bool(pat)} if saved else None),
+        "analysis": vl or {"condition": "本地基础检查（未连接在线识别）", "features": quality["items"][:4],
+                           "confidence": "—", "severity": "—", "advice_level": rules["level"], "red_flags": [],
+                           "note": "网络恢复后可重新分析获得更完整的识别结果。"},
+        "mapped": rules["mapped"], "level": rules["level"], "care": rules["care"], "meds": rules["meds"],
+        "red_flags": rules["red_flags"], "insects": rules["insects"], "disclaimer": _PHOTO_DISCLAIMER,
     }
-    counted = _photo_count(acc, rules)  # 匿名计入本院统计（仅类别计数，照片不出院）
-    if _feishu:
-        _feishu.notify_photo(acc, rules, _PHOTO_STATS.get(counted, {}).get("total", 0) if counted else 0)
+    counted = _photo_count(acc, rules) if vl is not None else None
+    if _feishu and vl is not None:
+        try:
+            _feishu.notify_photo(acc, rules, _PHOTO_STATS.get(counted, {}).get("total", 0) if counted else 0)
+        except Exception:
+            pass
     result["counted"] = bool(counted)
     result["counted_hospital"] = counted
-    _PHOTO_CACHE[ck] = result
     return jsonify(result)
 
 
-@app.route("/sample/<fn>")
-def photo_sample(fn):
-    if fn not in ("sample_wound.jpg", "sample_bite.jpg"):
-        return ("not found", 404)
-    p = os.path.join(os.path.dirname(os.path.abspath(__file__)), fn)
-    if not os.path.exists(p):
-        return ("not found", 404)
-    with open(p, "rb") as f:
-        data = f.read()
-    return app.response_class(data, mimetype="image/jpeg")
+# ---------- 启动加载 ----------
+_patients_load()
+_cases_load()
+_photohist_load()
 
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("  联邦医院知识图谱AI — 后端已启动（v4.7 应用台版）")
+    print("  联邦医院知识图谱AI — 后端已启动（v4.8 病历档案版）")
     print("  访问: http://localhost:5000")
     print("  API 列表:")
     print("    GET  /api/hospitals       — 医院列表")
@@ -1773,6 +2359,9 @@ if __name__ == "__main__":
     print("    GET  /api/fl/export    — 训练日志导出")
     print("    POST /api/feedback     — 病例反馈（本地沉淀）")
     print("    GET  /api/photo/stats  — 区域伤情统计（k-匿名）")
+    print("    POST /api/patient/match  — 病历档案·身份核验")
+    print("    GET  /api/patient/me     — 我的健康档案（关联病史）")
+    print("    GET  /api/photo/cases    — 示范病例库（相似病例对比）")
     print("    GET  /api/graph        — 知识图谱（?scope=local|fed）")
     print("    GET  /legacy           — 旧版页面（保留通道）")
     print("=" * 50)

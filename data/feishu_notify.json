@@ -1,0 +1,11 @@
+{
+ "enabled": true,
+ "chat_id": "oc_00000000000000000000000000000000",
+ "openclaw_config": "C:\\Users\\user\\.openclaw-autoclaw\\openclaw.json",
+ "events": {
+  "feedback": true,
+  "photo": true,
+  "chat": true,
+  "train": true
+ }
+}

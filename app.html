@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="医院图谱AI">
 <title>联邦医院知识图谱 AI · 应用台</title>
-<!-- 应用台 v4.7 · 侧栏导航 + 登录注册 + 手机直达 · 2026-10-09 -->
+<!-- 应用台 v4.8 · 病历档案 + 拍照对比升级 · 2026-10-10 -->
 <style>
 :root{
   --ink:#0a1628; --ink2:#0c1c34; --ink3:#0e2244;
@@ -229,6 +229,68 @@ a{color:var(--blue2)}
 .dchip{font-size:.72rem;padding:6px 11px;border-radius:99px;border:1px solid rgba(94,162,255,.3);background:rgba(37,99,235,.1);color:#cfe0ff;cursor:pointer;transition:all .2s}
 .dchip:hover{border-color:var(--blue2);background:rgba(37,99,235,.24)}
 
+/* ---------- v4.8 病历档案 ---------- */
+.rc-intro h3{font-size:1rem;margin-bottom:6px}
+.rc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.rc-pat-top{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+.rc-av{width:46px;height:46px;border-radius:50%;background:linear-gradient(135deg,var(--blue),var(--cyan));display:flex;align-items:center;justify-content:center;font-weight:800;font-size:1.1rem;color:#fff;flex:none}
+.rc-chip{font-size:.7rem;color:#9cc8ff;border:1px solid rgba(94,162,255,.4);background:rgba(37,99,235,.14);border-radius:999px;padding:3px 10px}
+.rc-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px;margin:12px 0}
+.rc-stat{background:rgba(8,18,36,.6);border:1px solid rgba(94,162,255,.14);border-radius:10px;padding:10px 12px;text-align:center}
+.rc-stat b{display:block;font-size:1.05rem;color:var(--blue2)}
+.rc-stat span{font-size:.7rem;color:var(--txm)}
+.rc-tl{display:flex;flex-direction:column;margin-top:6px}
+.rc-tl-item{position:relative;padding:0 0 16px 22px;border-left:1.5px solid rgba(94,162,255,.25);margin-left:8px}
+.rc-tl-item:last-child{border-left-color:transparent;padding-bottom:4px}
+.rc-tl-dot{position:absolute;left:-6.5px;top:2px;width:11px;height:11px;border-radius:50%;background:var(--blue2);border:2px solid #0a1628}
+.rc-tl-date{font-size:.7rem;color:var(--txm)}
+.rc-tl-title{font-size:.86rem;font-weight:700;margin:2px 0}
+.rc-tl-detail{font-size:.78rem;color:var(--txm);line-height:1.75}
+.rc-photos{display:flex;gap:10px;flex-wrap:wrap}
+.rc-ph{width:112px;border:1px solid rgba(94,162,255,.2);border-radius:10px;overflow:hidden;background:rgba(8,18,36,.6)}
+.rc-ph img{width:100%;height:84px;object-fit:cover;display:block}
+.rc-ph span{display:block;font-size:.66rem;color:var(--txm);padding:5px 7px;line-height:1.5}
+.rc-patnote{margin-bottom:10px;padding:9px 12px;border:1px dashed rgba(94,162,255,.4);border-radius:10px;font-size:.78rem;color:#cfe0ff;line-height:1.7}
+/* ---------- v4.8 拍照升级 ---------- */
+.ph-steps{display:flex;flex-direction:column;gap:8px;margin:10px 0 6px}
+.ph-step{display:flex;gap:10px;opacity:0;transform:translateY(6px);transition:all .35s var(--ease)}
+.ph-step.on{opacity:1;transform:none}
+.ph-si{flex:none;width:24px;height:24px;border-radius:50%;background:rgba(37,99,235,.25);border:1px solid rgba(94,162,255,.5);color:#9cc8ff;font-size:.72rem;display:flex;align-items:center;justify-content:center;font-weight:700}
+.ph-sb{flex:1;min-width:0}
+.ph-sb b{font-size:.82rem;display:block}
+.ph-sb span{font-size:.75rem;color:var(--txm);line-height:1.7;display:block;margin-top:2px}
+.ph-engine{font-size:.72rem;color:#9cc8ff;border:1px solid rgba(94,162,255,.4);background:rgba(37,99,235,.12);border-radius:999px;padding:4px 10px}
+.ph-engine.fb{color:#ffc38a;border-color:rgba(255,170,90,.45);background:rgba(217,119,6,.14)}
+.ph-cmp{display:grid;grid-template-columns:1fr auto 1fr;gap:10px;align-items:center;margin:12px 0}
+.ph-cmp figure{margin:0;border:1px solid rgba(94,162,255,.2);border-radius:12px;overflow:hidden;background:rgba(8,18,36,.6)}
+.ph-cmp img{width:100%;height:190px;object-fit:cover;display:block}
+.ph-cmp figcaption{font-size:.72rem;color:var(--txm);padding:7px 9px;line-height:1.5}
+.ph-cmp-mid{font-size:.78rem;color:var(--blue2);text-align:center;line-height:1.6}
+.ph-hits{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0 4px}
+.ph-hit{font-size:.7rem;color:#9fe6c0;border:1px solid rgba(120,220,160,.4);background:rgba(14,159,110,.12);border-radius:999px;padding:2px 9px}
+.ph-diff{font-size:.78rem;color:var(--txm);line-height:1.8;margin-top:6px}
+.ph-thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.ph-th{width:74px;border:1px solid rgba(94,162,255,.2);border-radius:9px;overflow:hidden;cursor:pointer;background:rgba(8,18,36,.6)}
+.ph-th img{width:100%;height:56px;object-fit:cover;display:block}
+.ph-th span{display:block;font-size:.62rem;color:var(--txm);padding:4px;text-align:center}
+.ph-th.on{border-color:var(--blue2);box-shadow:0 0 10px rgba(94,162,255,.4)}
+.ph-table{width:100%;border-collapse:collapse;font-size:.76rem;margin-top:8px}
+.ph-table th,.ph-table td{border:1px solid rgba(94,162,255,.18);padding:7px 9px;text-align:left;color:var(--txm);line-height:1.6}
+.ph-table th{color:#cfe0ff;background:rgba(37,99,235,.12);font-weight:600}
+.ph-metrics{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px}
+.ph-metric{background:rgba(8,18,36,.6);border:1px solid rgba(94,162,255,.14);border-radius:10px;padding:8px 12px;font-size:.72rem;color:var(--txm)}
+.ph-metric b{color:var(--blue2);font-size:.9rem}
+.ph-prevbox{display:flex;align-items:center;gap:10px;margin-top:10px}
+.ph-prevbox img{max-width:180px;border-radius:10px;border:1px solid rgba(94,162,255,.25)}
+.ph-saved{font-size:.78rem;color:#9fe6c0;margin-top:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ph-lib{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-top:10px}
+.ph-libcard{border:1px solid rgba(94,162,255,.18);border-radius:12px;overflow:hidden;background:rgba(8,18,36,.6);cursor:pointer;transition:all .18s}
+.ph-libcard:hover{border-color:rgba(94,162,255,.5)}
+.ph-libcard img{width:100%;height:100px;object-fit:cover;display:block}
+.ph-libcard b{display:block;font-size:.8rem;padding:8px 10px 2px}
+.ph-libcard span{display:block;font-size:.68rem;color:var(--txm);padding:0 10px 9px;line-height:1.5}
+@media(max-width:680px){.ph-cmp{grid-template-columns:1fr}.ph-cmp-mid{display:none}.ph-cmp img{height:150px}}
+
 </style>
 </head>
 
@@ -294,6 +356,7 @@ a{color:var(--blue2)}
     </div>
     <nav class="side-nav">
       <button class="navi" data-v="home" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5 12 4l8 6.5"/><path d="M6 9.5V20h12V9.5"/><path d="M10 20v-5h4v5"/></svg>概览</button>
+      <button class="navi" data-v="record" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M10 13h4M12 11v4"/></svg>病历档案</button>
       <button class="navi" data-v="diag" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h5"/><path d="M8 17l2-2 1.6 1.6L15.5 13"/></svg>AI 辅助诊断</button>
       <button class="navi" data-v="graph" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="6" r="2.4"/><circle cx="6" cy="17" r="2.4"/><circle cx="18" cy="17" r="2.4"/><path d="M10.8 8.1L7.2 14.9M13.2 8.1l3.6 6.8M8.4 17h7.2"/></svg>知识图谱</button>
       <button class="navi" data-v="fl" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.6"/><circle cx="5" cy="6" r="1.7"/><circle cx="19" cy="6" r="1.7"/><circle cx="5" cy="18" r="1.7"/><circle cx="19" cy="18" r="1.7"/><path d="M6.4 7.1l3.7 3.3M17.6 7.1l-3.7 3.3M6.4 16.9l3.7-3.3M17.6 16.9l-3.7-3.3"/></svg>联邦训练</button>
@@ -466,7 +529,7 @@ function mxOpenDiag(){
                   '<select class="mx-fbsel" data-d="' + hgxEsc(d.disease) + '"><option value="">修正为…</option>' + otherOpts + '</select></div>');
           h2.push('</div></div>');
         }
-        res.innerHTML = h2.join('');
+        res.innerHTML = patNote() + h2.join('');
         Array.prototype.forEach.call(res.querySelectorAll('.mx-fb-adopt'), function(b2){
           b2.addEventListener('click', function(){ mxFeedback(b2.getAttribute('data-d'), 'adopt', b2); });
         });
@@ -847,32 +910,43 @@ function mxOpenChat(){
 }
 
 
+
 /* ============================================================
-   v4.3 拍照分析（/api/photo/analyze · qwen-vl + 知识规则库）
+   v4.8 拍照分析（全过程可见 · 相似病例对比 · 历史记忆）
    ============================================================ */
-var mxPhotoFile = null;
+var mxPhFile = null;
+var mxPhB64 = '';
+var mxPhData = null;
+var mxPhSel = 0;
+var mxPhCases = null;
+
 function mxOpenPhoto(){
-  enterView('拍照分析', '上传皮肤患处照片 · 初步分析 + 护理用药建议（健康教育参考）');
-  mxPhotoFile = null;
+  enterView('拍照分析', '全过程可见：质量检查 → 识别 → 相似病例对比 → 建议（健康教育参考）');
+  mxPhFile = null; mxPhB64 = ''; mxPhData = null; mxPhSel = 0;
   var h = [];
-  h.push('<p class="mx-note">拍摄或上传一张患处照片（清晰、光线充足）。系统将给出：<b>伤情初步分析 · 可能来源（如虫咬） · 护理步骤 · 用药参考 · 就医建议</b>。结果仅供参考，不构成诊断。</p>');
+  h.push('<p class="mx-note">上传皮肤患处照片，系统将<b>逐步展示完整分析过程</b>：质量检查 → 智能识别 → 相似病例对比 → 鉴别要点 → 护理与就医建议。结果仅供参考，不构成诊断。</p>');
   h.push('<label class="mx-drop" id="mxPhDrop"><input type="file" id="mxPhFile" accept="image/*" hidden><span class="mx-drop-ic">📷</span><span>点击选择照片（手机端可调用相机拍摄）</span><span class="mx-mut">支持 JPG / PNG，请小于 5MB</span></label>');
   h.push('<div class="mx-phprev" id="mxPhPrev" hidden><img id="mxPhImg" alt="预览"></div>');
-  h.push('<div class="mx-acts"><span class="mx-mut" id="mxPhTip">未选择照片</span><button class="btn primary sm" id="mxPhGo" type="button" disabled>分析照片</button><button class="btn ghost dark sm" id="mxPhClr" type="button">清除</button></div>');
-  h.push('<div class="mx-acts" style="margin-top:2px"><button class="btn ghost dark sm" id="mxPhStatsBtn" type="button">查看伤情统计</button><span class="mx-mut">匿名统计：仅类别计数（k≥3 才展示），照片不出院</span></div>');
+  h.push('<div class="mx-acts"><span class="mx-mut" id="mxPhTip">未选择照片</span><button class="btn primary sm" id="mxPhGo" type="button" disabled>开始分析</button><button class="btn ghost dark sm" id="mxPhClr" type="button">清除</button></div>');
+  h.push('<div class="mx-hints"><span class="mx-mut">没有照片？示例试跑：</span>' +
+    '<button type="button" class="mx-chip" id="mxPhS1">示例 · 蚊虫叮咬</button>' +
+    '<button type="button" class="mx-chip" id="mxPhS2">示例 · 皮肤创面</button>' +
+    '<button type="button" class="mx-chip" id="mxPhS3">示例 · 头皮红斑</button>' +
+    '<button type="button" class="mx-chip" id="mxPhS4">示例 · 肘部斑块</button></div>');
+  h.push('<div class="mx-acts" style="margin-top:2px"><button class="btn ghost dark sm" id="mxPhLibBtn" type="button">浏览示范病例库</button><button class="btn ghost dark sm" id="mxPhStatsBtn" type="button">查看伤情统计</button><span class="mx-mut">匿名统计仅类别计数（k≥3），照片不出院</span></div>');
+  h.push('<div id="mxPhLib"></div>');
   h.push('<div id="mxPhStats"></div>');
-  h.push('<div class="mx-hints"><span class="mx-mut">没有照片？示例试跑：</span><button type="button" class="mx-chip" id="mxPhS1">示例 · 蚊虫叮咬</button><button type="button" class="mx-chip" id="mxPhS2">示例 · 皮肤创面</button></div>');
   h.push('<div id="mxPhRes"></div>');
   viewHost.innerHTML = h.join('');
   var file = QS('#mxPhFile'), prev = QS('#mxPhPrev'), img = QS('#mxPhImg'), tip = QS('#mxPhTip'), go = QS('#mxPhGo');
   function setImg(dataUrl, label){
-    mxPhotoFile = dataUrl;
+    mxPhFile = dataUrl;
     img.src = dataUrl; prev.hidden = false;
     tip.textContent = label || '已选择照片';
     go.disabled = false;
   }
   function clearAll(){
-    mxPhotoFile = null; prev.hidden = true; img.src = '';
+    mxPhFile = null; prev.hidden = true; img.src = '';
     tip.textContent = '未选择照片'; go.disabled = true;
     QS('#mxPhRes').innerHTML = '';
     try{ file.value = ''; }catch(e){}
@@ -899,6 +973,8 @@ function mxOpenPhoto(){
   }
   QS('#mxPhS1').addEventListener('click', function(){ loadSample('sample_bite.jpg', '示例 · 蚊虫叮咬'); });
   QS('#mxPhS2').addEventListener('click', function(){ loadSample('sample_wound.jpg', '示例 · 皮肤创面'); });
+  QS('#mxPhS3').addEventListener('click', function(){ loadSample('sample_scalp.jpg', '示例 · 头皮红斑'); });
+  QS('#mxPhS4').addEventListener('click', function(){ loadSample('sample_arm.jpg', '示例 · 肘部斑块'); });
   function fmtMasked(m){
     if(!m){ return '—'; }
     var keys2 = [];
@@ -912,7 +988,7 @@ function mxOpenPhoto(){
     box.innerHTML = '<div class="mx-load"><span class="mx-spin"></span> 加载统计…</div>';
     hgxGet('/api/photo/stats').then(function(st){
       if(!st || !st.ok){ box.innerHTML = '<p class="mx-err">统计加载失败</p>'; return; }
-      var h3 = ['<div class="mx-card"><div class="mx-ch"><b>伤情统计</b><span class="mx-cdept">' + (st.scope === 'ALL' ? '六院汇总（联邦统计）' : '本院（A–F 本地计数）') + '</span></div>'];
+      var h3 = ['<div class="mx-card"><div class="mx-ch"><b>伤情统计</b><span class="mx-cdept">' + (st.scope === 'ALL' ? '六院汇总（联邦统计）' : st.scope + ' 院（本地计数）') + '</span></div>'];
       if(st.scope === 'ALL'){
         h3.push('<div class="mx-meta"><section><h5>各院计数</h5><ul>');
         var ph = st.per_hospital || [];
@@ -929,84 +1005,431 @@ function mxOpenPhoto(){
       box.innerHTML = h3.join('');
     }).catch(function(){ box.innerHTML = '<p class="mx-err">统计加载失败（需登录后使用）</p>'; });
   });
-  function runPhoto(){
-    if(!mxPhotoFile){ toast('请先选择或载入一张照片'); return; }
+  QS('#mxPhLibBtn').addEventListener('click', phOpenLib);
+
+  function engineChip(eng){
+    eng = eng || {};
+    if(eng.mode === 'vl'){ return '<span class="ph-engine">识别引擎：通义千问 VL</span>'; }
+    return '<span class="ph-engine fb">本地基础检查（云端未连接）</span>';
+  }
+
+  function phRenderSteps(d){
+    var steps = d.steps || [];
+    var h = ['<div class="mx-card"><div class="mx-ch"><b>分析过程</b>' + engineChip(d.engine) + '<span class="mx-cdept">共 ' + steps.length + ' 步 · 全程可见</span></div><div class="ph-steps">'];
+    for(var i = 0; i < steps.length; i++){
+      h.push('<div class="ph-step"><div class="ph-si">' + (i + 1) + '</div><div class="ph-sb"><b>' + hgxEsc(steps[i].title) + '</b><span>' + hgxEsc(steps[i].detail) + '</span></div></div>');
+    }
+    h.push('</div></div>');
+    return h.join('');
+  }
+
+  function phRenderCommon(d){
+    var a = d.analysis || {};
+    var lv = d.level || '自行处理';
+    var lvCls = lv === '尽快就医' ? 'mx-lv-3' : (lv === '建议就医' ? 'mx-lv-2' : 'mx-lv-1');
+    var lvNote = lv === '尽快就医' ? '存在需要警惕的信号，建议尽快前往医院（急诊 / 皮肤科 / 感染科）。' :
+                 (lv === '建议就医' ? '建议近日前往门诊进一步评估处理。' : '可先自行护理并观察 48 小时，如加重再就医。');
+    var h = [];
+    h.push('<div class="mx-lv ' + lvCls + '">处置建议：' + hgxEsc(lv) + ' · ' + hgxEsc(lvNote) + '</div>');
+    h.push('<div class="mx-card"><div class="mx-ch"><b>' + hgxEsc(a.condition || '皮肤表现') + '</b>' +
+            (a.severity && a.severity !== '—' ? '<span class="mx-badge mx-sv-' + hgxEsc(a.severity) + '">' + hgxEsc(a.severity) + '</span>' : '') +
+            (a.confidence && a.confidence !== '—' ? '<span class="mx-cdept">推断置信度 ' + hgxEsc(a.confidence) + '</span>' : '') + '</div>');
+    var feats = a.features || [];
+    var ins = d.insects || [];
+    h.push('<div class="mx-meta">');
+    h.push('<section><h5>观察到的特征</h5>');
+    if(feats.length){ h.push('<ul>'); for(var i = 0; i < feats.length; i++){ h.push('<li>' + hgxEsc(feats[i]) + '</li>'); } h.push('</ul>'); }
+    else { h.push('<p>—</p>'); }
+    h.push('</section>');
+    if(ins.length){
+      h.push('<section><h5>可能的叮咬来源（生物学知识库）</h5><ul>');
+      for(var j = 0; j < ins.length; j++){
+        h.push('<li><b>' + hgxEsc(ins[j].name) + '</b>：' + hgxEsc(ins[j].feature) + '（' + hgxEsc(ins[j].scene) + '）</li>');
+      }
+      h.push('</ul></section>');
+    }
+    var care = d.care || [];
+    h.push('<section><h5>护理步骤</h5>');
+    if(care.length){ h.push('<ul>'); for(var k = 0; k < care.length; k++){ h.push('<li>' + hgxEsc(care[k]) + '</li>'); } h.push('</ul>'); }
+    else { h.push('<p>保持清洁，观察变化。</p>'); }
+    h.push('</section>');
+    var meds = d.meds || [];
+    h.push('<section><h5>用药参考（非处方，仅供参考）</h5>');
+    if(meds.length){
+      h.push('<ul>');
+      for(var mi = 0; mi < meds.length; mi++){
+        h.push('<li><b>' + hgxEsc(meds[mi].name) + '</b> —— ' + hgxEsc(meds[mi].usage) + ' <span class="mx-mut">（' + hgxEsc(meds[mi].note) + '）</span></li>');
+      }
+      h.push('</ul>');
+    } else { h.push('<p>暂无需用药，做好清洁与观察。</p>'); }
+    h.push('</section>');
+    h.push('</div>');
+    var reds = d.red_flags || [];
+    if(reds.length){
+      h.push('<div class="mx-card mx-flags-card"><h5>需要警惕（出现以下情况请及时就医）</h5><ul class="mx-flags">');
+      for(var ri = 0; ri < reds.length; ri++){ h.push('<li>' + hgxEsc(reds[ri]) + '</li>'); }
+      h.push('</ul></div>');
+    }
+    if(d.counted){
+      h.push('<p class="mx-mut" style="font-size:.74rem;margin-top:8px">已匿名计入本院统计（' + hgxEsc(d.counted_hospital || '') + ' 院 · 类别计数，照片不出院）</p>');
+    }
+    h.push('<p class="mx-mut" style="font-size:.74rem;margin-top:8px">' + hgxEsc(d.disclaimer || '结果仅供参考，不构成诊断。') + '</p>');
+    h.push('</div>');
+    return h.join('');
+  }
+
+  function phRenderHist(hs){
+    var h = ['<div class="mx-card"><div class="mx-ch"><b>与我的历史记录对比</b><span class="mx-cdept">上次：' + hgxEsc(hs.prev.time || '') + ' · ' + hgxEsc(hs.prev.top || '') + '</span></div>'];
+    h.push('<p class="ph-diff">' + hgxEsc(hs.note || '') + '</p>');
+    var dl = hs.deltas || {}, keys = [];
+    for(var k in dl){ keys.push(k); }
+    if(keys.length){
+      h.push('<div class="ph-metrics">');
+      for(var i = 0; i < keys.length; i++){
+        var kk = keys[i], vv = dl[kk];
+        var label = kk === 'redness' ? '红色区域变化' : (kk === 'edge' ? '纹理密度变化' : kk);
+        var sign = vv > 0 ? '+' : '';
+        h.push('<div class="ph-metric">' + hgxEsc(label) + ' <b>' + sign + vv + '%</b>（较上次）</div>');
+      }
+      h.push('</div>');
+    }
+    var tk = hgxTok();
+    h.push('<div class="ph-prevbox"><img src="/api/photo/image/' + hgxEsc(hs.prev.id) + '?token=' + hgxEsc(tk) + '" alt="上次记录"><span class="mx-mut">上次记录（' + hgxEsc(hs.prev.time || '') + '）</span></div>');
+    h.push('<p class="mx-mut" style="font-size:.72rem;margin-top:6px">图像指标为演示级近似（亮度 / 红色区域 / 纹理密度），仅供趋势参考，不能替代专业评估。</p>');
+    h.push('</div>');
+    return h.join('');
+  }
+
+  function paintCmp(){
+    var box = QS('#mxPhCmp');
+    if(!box || !mxPhData){ return; }
+    var m = (mxPhData.cases && mxPhData.cases.matched) || [];
+    if(!m.length){
+      box.innerHTML = '<div class="mx-card"><div class="mx-ch"><b>相似病例对比</b><span class="mx-cdept">示范病例库（合成演示）</span></div><p class="mx-note">本次未匹配到高相似病例——可点击上方「浏览示范病例库」查看全部 ' + ((mxPhData.cases && mxPhData.cases.total) || 8) + ' 例示范病例，了解常见皮肤表现的鉴别要点。</p></div>';
+      return;
+    }
+    var c = m[mxPhSel] || m[0];
+    var h = [];
+    h.push('<div class="mx-card"><div class="mx-ch"><b>相似病例对比</b><span class="mx-cdept">示范病例库 · 合成演示</span>' + (c.src === 'sample' ? '<span class="mx-badge mx-model">示例预置匹配</span>' : '') + '</div>');
+    h.push('<div class="ph-cmp">');
+    h.push('<figure><img src="' + mxPhB64 + '" alt="你的照片"><figcaption>你的照片（本次上传）</figcaption></figure>');
+    h.push('<div class="ph-cmp-mid">对比<br>⇄</div>');
+    h.push('<figure><img src="' + c.image + '" alt="示范病例"><figcaption>示范病例 · ' + hgxEsc(c.name) + '</figcaption></figure>');
+    h.push('</div>');
+    var hits = c.hits || [];
+    var shown = [];
+    for(var i = 0; i < hits.length; i++){ if(hits[i] && hits[i] !== '示例预置匹配'){ shown.push(hits[i]); } }
+    if(shown.length){
+      h.push('<div class="ph-hits">');
+      for(var t = 0; t < shown.length; t++){ h.push('<span class="ph-hit">相似特征 · ' + hgxEsc(shown[t]) + '</span>'); }
+      h.push('</div>');
+    }
+    h.push('<p class="ph-diff"><b>鉴别要点：</b>' + hgxEsc(c.diff || '') + '</p>');
+    if(m.length > 1){
+      h.push('<div class="ph-thumbs">');
+      for(var t2 = 0; t2 < m.length; t2++){
+        h.push('<div class="ph-th' + (t2 === mxPhSel ? ' on' : '') + '" data-i="' + t2 + '"><img src="' + m[t2].image + '" alt=""><span>' + hgxEsc(m[t2].name) + '</span></div>');
+      }
+      h.push('</div>');
+    }
+    h.push('</div>');
+    var cf = mxPhData.cases && mxPhData.cases.confusion;
+    if(cf && cf.rows){
+      var nm = String(cf.title || '').split('↔');
+      var n1 = (nm[0] || '').trim(), n2 = (nm[1] || '').trim();
+      h.push('<div class="mx-card"><div class="mx-ch"><b>重点鉴别：' + hgxEsc(cf.title || '') + '</b><span class="mx-badge mx-model">治疗方案不同</span></div>');
+      h.push('<table class="ph-table"><tr><th>鉴别点</th><th>' + hgxEsc(n1) + '</th><th>' + hgxEsc(n2) + '</th></tr>');
+      for(var r = 0; r < cf.rows.length; r++){
+        var row = cf.rows[r] || [];
+        h.push('<tr><td>' + hgxEsc(row[0]) + '</td><td>' + hgxEsc(row[1]) + '</td><td>' + hgxEsc(row[2]) + '</td></tr>');
+      }
+      h.push('</table><p class="mx-mut" style="font-size:.74rem;margin-top:8px">' + hgxEsc(cf.note || '') + '</p></div>');
+    }
+    box.innerHTML = h.join('');
+    QSA('.ph-th').forEach(function(el){
+      el.addEventListener('click', function(){ mxPhSel = parseInt(el.getAttribute('data-i'), 10) || 0; paintCmp(); });
+    });
+  }
+
+  function renderPhotoResult(d){
     var res = QS('#mxPhRes');
-    res.innerHTML = '<div class="mx-load"><span class="mx-spin"></span> 正在分析（视觉模型观察 + 知识库匹配，约 10–20 秒）…</div>';
+    var h = [];
+    h.push(phRenderSteps(d));
+    h.push('<div id="mxPhCmp"></div>');
+    h.push(phRenderCommon(d));
+    if(d.history && d.history.prev){ h.push(phRenderHist(d.history)); }
+    if(d.saved){
+      h.push('<p class="ph-saved">✓ 本次结果已存入拍照历史' + (d.saved.linked_patient ? '，并关联健康档案' : '') + ' · <button class="mx-chip" id="mxPhToRec" type="button">去病历档案查看</button></p>');
+    }
+    res.innerHTML = h.join('');
+    paintCmp();
+    var stepEls = res.querySelectorAll('.ph-step');
+    Array.prototype.forEach.call(stepEls, function(el, i2){
+      setTimeout(function(){ el.classList.add('on'); }, 110 * i2);
+    });
+    var tr = QS('#mxPhToRec');
+    if(tr){ tr.addEventListener('click', function(){ openView('record'); }); }
+  }
+
+  function runPhoto(){
+    if(!mxPhFile){ toast('请先选择或载入一张照片'); return; }
+    var res = QS('#mxPhRes');
+    mxPhB64 = mxPhFile;
+    res.innerHTML = '<div class="mx-load"><span class="mx-spin"></span> 正在分析（质量检查 + 智能识别 + 病例匹配，约 10–20 秒）…</div>';
     go.disabled = true;
-    fetch('/api/photo/analyze', { method: 'POST', headers: hgxH(true), body: JSON.stringify({ image: mxPhotoFile }) })
+    fetch('/api/photo/analyze', { method: 'POST', headers: hgxH(true), body: JSON.stringify({ image: mxPhFile }) })
       .then(function(r){ return r.json(); })
       .then(function(d){
         go.disabled = false;
         if(!d || !d.ok){ res.innerHTML = '<p class="mx-err">分析失败：' + hgxEsc((d && d.error) || '未知错误') + '</p>'; return; }
-        var a = d.analysis || {};
-        var lv = d.level || '自行处理';
-        var lvCls = lv === '尽快就医' ? 'mx-lv-3' : (lv === '建议就医' ? 'mx-lv-2' : 'mx-lv-1');
-        var lvNote = lv === '尽快就医' ? '存在需要警惕的信号，建议尽快前往医院（急诊 / 皮肤科 / 感染科）。' :
-                     (lv === '建议就医' ? '建议近日前往门诊进一步评估处理。' : '可先自行护理并观察 48 小时，如加重再就医。');
-        var h2 = [];
-        h2.push('<div class="mx-lv ' + lvCls + '">处置建议：' + hgxEsc(lv) + ' · ' + hgxEsc(lvNote) + '</div>');
-        h2.push('<div class="mx-card"><div class="mx-ch"><b>' + hgxEsc(a.condition || '皮肤表现') + '</b>' +
-                '<span class="mx-badge mx-sv-' + hgxEsc(a.severity || '轻度') + '">' + hgxEsc(a.severity || '') + '</span>' +
-                (a.confidence ? '<span class="mx-cdept">推断置信度 ' + hgxEsc(a.confidence) + '</span>' : '') + '</div>');
-        var feats = a.features || [];
-        var ins = d.insects || [];
-        h2.push('<div class="mx-meta">');
-        h2.push('<section><h5>观察到的特征</h5>');
-        if(feats.length){ h2.push('<ul>'); for(var i = 0; i < feats.length; i++){ h2.push('<li>' + hgxEsc(feats[i]) + '</li>'); } h2.push('</ul>'); }
-        else { h2.push('<p>—</p>'); }
-        h2.push('</section>');
-        if(ins.length){
-          h2.push('<section><h5>可能的叮咬来源（生物学知识库）</h5><ul>');
-          for(var j = 0; j < ins.length; j++){
-            h2.push('<li><b>' + hgxEsc(ins[j].name) + '</b>：' + hgxEsc(ins[j].feature) + '（' + hgxEsc(ins[j].scene) + '）</li>');
-          }
-          h2.push('</ul></section>');
-        }
-        var care = d.care || [];
-        h2.push('<section><h5>护理步骤</h5>');
-        if(care.length){ h2.push('<ul>'); for(var k = 0; k < care.length; k++){ h2.push('<li>' + hgxEsc(care[k]) + '</li>'); } h2.push('</ul>'); }
-        else { h2.push('<p>保持清洁，观察变化。</p>'); }
-        h2.push('</section>');
-        var meds = d.meds || [];
-        h2.push('<section><h5>用药参考（非处方，仅供参考）</h5>');
-        if(meds.length){
-          h2.push('<ul>');
-          for(var mi = 0; mi < meds.length; mi++){
-            h2.push('<li><b>' + hgxEsc(meds[mi].name) + '</b> —— ' + hgxEsc(meds[mi].usage) + ' <span class="mx-mut">（' + hgxEsc(meds[mi].note) + '）</span></li>');
-          }
-          h2.push('</ul>');
-        } else { h2.push('<p>暂无需用药，做好清洁与观察。</p>'); }
-        h2.push('</section>');
-        h2.push('</div>');
-        var reds = d.red_flags || [];
-        if(reds.length){
-          h2.push('<div class="mx-card mx-flags-card"><h5>需要警惕（出现以下情况请及时就医）</h5><ul class="mx-flags">');
-          for(var ri = 0; ri < reds.length; ri++){ h2.push('<li>' + hgxEsc(reds[ri]) + '</li>'); }
-          h2.push('</ul></div>');
-        }
-        if(d.counted){
-          h2.push('<p class="mx-mut" style="font-size:.74rem;margin-top:8px">已匿名计入本院统计（' + hgxEsc(d.counted_hospital || '') + ' 院 · 类别计数，照片不出院）</p>');
-        }
-        h2.push('<p class="mx-mut" style="font-size:.74rem;margin-top:8px">' + hgxEsc(d.disclaimer || '结果仅供参考，不构成诊断。') + '</p>');
-        h2.push('</div>');
-        res.innerHTML = h2.join('');
+        mxPhData = d;
+        mxPhSel = 0;
+        renderPhotoResult(d);
       })
       .catch(function(){ go.disabled = false; res.innerHTML = '<p class="mx-err">网络或后端服务异常，请稍后重试。</p>'; });
   }
-  var ps = new URLSearchParams(location.search).get('photosample');
-  if(ps === 'bite' || ps === 'wound'){
-    setTimeout(function(){ loadSample(ps === 'bite' ? 'sample_bite.jpg' : 'sample_wound.jpg', ps === 'bite' ? '示例 · 蚊虫叮咬' : '示例 · 皮肤创面'); }, 300);
+
+  var ps = q.get('photosample');
+  var smap = { bite: 'sample_bite.jpg', wound: 'sample_wound.jpg', scalp: 'sample_scalp.jpg', arm: 'sample_arm.jpg' };
+  if(ps && smap[ps]){
+    setTimeout(function(){ loadSample(smap[ps], '示例'); }, 300);
   }
 }
 
+function phOpenLib(){
+  var box = QS('#mxPhLib');
+  if(!box){ return; }
+  if(box.getAttribute('data-open') === '1'){ box.innerHTML = ''; box.removeAttribute('data-open'); return; }
+  box.setAttribute('data-open', '1');
+  box.innerHTML = '<div class="mx-load"><span class="mx-spin"></span> 加载病例库…</div>';
+  var task = mxPhCases ? Promise.resolve(mxPhCases) : hgxGet('/api/photo/cases').then(function(d){ mxPhCases = d; return d; });
+  task.then(function(d){
+    var cs = (d && d.cases) || [];
+    var h = ['<div class="mx-card"><div class="mx-ch"><b>示范病例库</b><span class="mx-cdept">共 ' + cs.length + ' 例 · 合成示意图（演示用，非真实病例照片）</span></div><p class="mx-note">点击任一病例查看：典型特征 / 鉴别要点 / 处理方向；已上传照片时会并排对比。</p><div class="ph-lib">'];
+    for(var i = 0; i < cs.length; i++){
+      var fdesc = String(cs[i].features || '');
+      if(fdesc.length > 44){ fdesc = fdesc.slice(0, 44) + '…'; }
+      h.push('<div class="ph-libcard" data-id="' + hgxEsc(cs[i].id) + '"><img src="' + cs[i].image + '" alt=""><b>' + hgxEsc(cs[i].name) + '</b><span>' + hgxEsc(fdesc) + '</span></div>');
+    }
+    h.push('</div><div id="mxPhLibDetail"></div></div>');
+    box.innerHTML = h.join('');
+    QSA('.ph-libcard').forEach(function(el){
+      el.addEventListener('click', function(){ phLibDetail(el.getAttribute('data-id')); });
+    });
+  }).catch(function(){ box.innerHTML = '<p class="mx-err">病例库加载失败（需登录后使用）</p>'; });
+}
+
+function phLibDetail(cid){
+  var d = mxPhCases || {};
+  var cs = d.cases || [];
+  var c = null;
+  for(var i = 0; i < cs.length; i++){ if(cs[i].id === cid){ c = cs[i]; break; } }
+  var box = QS('#mxPhLibDetail');
+  if(!box || !c){ return; }
+  var h = [];
+  h.push('<div class="ph-cmp" style="margin-top:6px">');
+  if(mxPhB64){ h.push('<figure><img src="' + mxPhB64 + '" alt="你的照片"><figcaption>你的照片（对比参考）</figcaption></figure>'); h.push('<div class="ph-cmp-mid">对比<br>⇄</div>'); }
+  h.push('<figure><img src="' + c.image + '" alt=""><figcaption>' + hgxEsc(c.name) + ' · 合成示意</figcaption></figure>');
+  h.push('</div>');
+  h.push('<p class="ph-diff"><b>典型特征：</b>' + hgxEsc(c.features || '') + '</p>');
+  h.push('<p class="ph-diff"><b>鉴别要点：</b>' + hgxEsc(c.diff || '') + '</p>');
+  h.push('<p class="ph-diff"><b>处理方向：</b>' + hgxEsc(c.care || '') + '</p>');
+  box.innerHTML = h.join('');
+}
 
 
 /* ============================================================
-   v4.7 应用台外壳：视图切换 / 概览 / 登录注册 / 手机适配
+   v4.8 病历档案（身份核验 · 既往记录 · 功能关联）
+   ============================================================ */
+function mxOpenRecord(){
+  enterView('病历档案', '身份核验 → 查询既往病例史 · 演示数据');
+  paintRecord();
+}
+
+function paintRecord(){
+  viewHost.innerHTML = '<div class="mx-load"><span class="mx-spin"></span> 正在读取档案状态…</div>';
+  hgxGet('/api/patient/me').then(function(d){
+    if(!d || !d.ok){ throw new Error('加载失败'); }
+    HGX_PAT = d;
+    if(d.bound && d.patient){ paintRecordBound(d); }
+    else { paintRecordForm(d); }
+  }).catch(function(e){
+    viewHost.innerHTML = '<p class="mx-err">档案加载失败：' + hgxEsc(e && e.message || e) + '（请确认登录状态与后端服务）</p>';
+  });
+}
+
+function paintRecordForm(d){
+  var h = [];
+  h.push('<div class="mx-card rc-intro"><h3>身份核验 · 查询既往记录</h3>');
+  h.push('<p class="mx-note">填写本人信息，系统将在院内档案中核验身份：若存在既往记录，可认领并关联到当前账号；未找到时可现场建立新档案。</p>');
+  h.push('<div class="rc-grid">');
+  h.push('<label class="fld">姓名<input id="rcName" placeholder="如：王芳"></label>');
+  h.push('<label class="fld">手机号<input id="rcPhone" placeholder="如：13900001234"></label>');
+  h.push('</div>');
+  h.push('<div class="mx-acts"><button class="btn primary sm" id="rcGo" type="button">核验身份</button><span class="mx-mut">演示档案（点击快速填入）：</span></div>');
+  h.push('<div class="mx-hints" id="rcChips">');
+  var demos = [['王芳', '13900001234'], ['李建国', '13711112222'], ['陈小雨', '15800003333'], ['张远', '13600004444'], ['周敏', '13500005555']];
+  for(var i = 0; i < demos.length; i++){
+    h.push('<button type="button" class="mx-chip" data-n="' + demos[i][0] + '" data-p="' + demos[i][1] + '">' + demos[i][0] + ' · ' + demos[i][1] + '</button>');
+  }
+  h.push('</div>');
+  h.push('<div id="rcMsg"></div>');
+  h.push('</div>');
+  h.push('<details class="mx-card" id="rcNewBox"><summary style="cursor:pointer;font-size:.85rem">未找到档案？建立新档案</summary>');
+  h.push('<div class="rc-grid" style="margin-top:10px">');
+  h.push('<label class="fld">姓名<input id="ncName"></label>');
+  h.push('<label class="fld">性别<select id="ncSex"><option>未填</option><option>男</option><option>女</option></select></label>');
+  h.push('<label class="fld">出生年份<input id="ncYear" placeholder="如 1995"></label>');
+  h.push('<label class="fld">手机号（可选）<input id="ncPhone"></label>');
+  h.push('</div>');
+  h.push('<div class="mx-acts"><button class="btn primary sm" id="ncGo" type="button">建立并绑定</button></div>');
+  h.push('<div id="ncMsg"></div></details>');
+  h.push('<p class="mx-mut" style="font-size:.74rem">说明：演示环境，档案为平台合成数据（非真实患者信息）；核验与关联仅用于功能演示。</p>');
+  h.push('<div class="mx-card"><div class="mx-ch"><b>档案能做什么？</b></div><p class="mx-note">· AI 诊断：采纳 / 修正诊断结果后，将自动写入你的档案；诊断结果页会显示既往史提示。<br>· 拍照分析：分析结果与图片自动关联档案，支持“与上次记录对比”。<br>· 后续可扩展：按既往史加权推理、复诊提醒等。</p></div>');
+  viewHost.innerHTML = h.join('');
+  QSA('#rcChips .mx-chip').forEach(function(c){
+    c.addEventListener('click', function(){
+      QS('#rcName').value = c.getAttribute('data-n');
+      QS('#rcPhone').value = c.getAttribute('data-p');
+      QS('#rcMsg').innerHTML = '';
+    });
+  });
+  QS('#rcGo').addEventListener('click', rcMatch);
+  QS('#ncGo').addEventListener('click', rcCreate);
+}
+
+function rcMatch(){
+  var n = (QS('#rcName').value || '').trim();
+  var p = (QS('#rcPhone').value || '').trim();
+  var msg = QS('#rcMsg');
+  if(!n || !p){ msg.innerHTML = '<p class="mx-err">请填写姓名与手机号</p>'; return; }
+  msg.innerHTML = '<div class="mx-load"><span class="mx-spin"></span> 核验中…</div>';
+  hgxPost('/api/patient/match', { name: n, phone: p }).then(function(r){
+    var d = r.data;
+    if(!r.ok || !d || !d.ok){ msg.innerHTML = '<p class="mx-err">核验失败：' + hgxEsc((d && d.error) || ('HTTP ' + r.status)) + '</p>'; return; }
+    if(!d.matched){
+      msg.innerHTML = '<p class="mx-err">' + hgxEsc(d.hint || '未找到匹配档案') + '</p>';
+      var nb = QS('#rcNewBox');
+      if(nb){ nb.open = true; QS('#ncName').value = n; QS('#ncPhone').value = p; }
+      return;
+    }
+    paintRecordPreview(d.patient, d.already_bound);
+  }).catch(function(){ msg.innerHTML = '<p class="mx-err">网络异常，请稍后重试</p>'; });
+}
+
+function rcCreate(){
+  var n = (QS('#ncName').value || '').trim();
+  var sex = QS('#ncSex').value || '未填';
+  var year = parseInt(QS('#ncYear').value, 10) || 0;
+  var phone = (QS('#ncPhone').value || '').trim();
+  var msg = QS('#ncMsg');
+  if(!n){ msg.innerHTML = '<p class="mx-err">请填写姓名</p>'; return; }
+  msg.innerHTML = '<div class="mx-load"><span class="mx-spin"></span> 建立中…</div>';
+  hgxPost('/api/patient/create', { name: n, sex: sex, birth_year: year, phone: phone }).then(function(r){
+    var d = r.data;
+    if(!r.ok || !d || !d.ok){ msg.innerHTML = '<p class="mx-err">建立失败：' + hgxEsc((d && d.error) || ('HTTP ' + r.status)) + '</p>'; return; }
+    toast('已建立并绑定新档案');
+    HGX_PAT = d;
+    paintRecordBound(d);
+  }).catch(function(){ msg.innerHTML = '<p class="mx-err">网络异常，请稍后重试</p>'; });
+}
+
+function paintRecordPreview(pat, alreadyBound){
+  var h = [];
+  h.push('<div class="mx-card rc-intro"><h3>核验成功 · 找到既往档案</h3>');
+  h.push('<p class="mx-note">系统在你的名下查询到以下档案。确认认领后，档案将关联到当前账号（' + hgxEsc(HGX.name || '') + '）' + (alreadyBound ? '；当前账号已绑定其他档案，确认后将切换' : '') + '。</p>');
+  h.push(rcPatCard(pat));
+  h.push(rcTimeline(pat.history || []));
+  h.push('<div class="mx-acts"><button class="btn primary sm" id="rcBindGo" type="button">认领并绑定此档案</button><button class="btn ghost dark sm" id="rcCancel" type="button">返回重填</button></div>');
+  h.push('<div id="rcMsg2"></div></div>');
+  viewHost.innerHTML = h.join('');
+  QS('#rcCancel').addEventListener('click', paintRecord);
+  QS('#rcBindGo').addEventListener('click', function(){
+    var b = QS('#rcBindGo');
+    b.disabled = true;
+    hgxPost('/api/patient/bind', { pid: pat.pid }).then(function(r){
+      b.disabled = false;
+      var d = r.data;
+      if(!r.ok || !d || !d.ok){ QS('#rcMsg2').innerHTML = '<p class="mx-err">绑定失败：' + hgxEsc((d && d.error) || ('HTTP ' + r.status)) + '</p>'; return; }
+      toast('已认领档案：' + pat.name);
+      HGX_PAT = d;
+      paintRecordBound({ ok: true, bound: true, patient: d.patient, photos: [], photo_count: 0 });
+    }).catch(function(){ b.disabled = false; QS('#rcMsg2').innerHTML = '<p class="mx-err">网络异常</p>'; });
+  });
+}
+
+function rcPatCard(pat){
+  var age = pat.birth_year ? (2026 - pat.birth_year) + ' 岁' : '—';
+  var h = ['<div class="mx-card"><div class="rc-pat-top"><div class="rc-av">' + hgxEsc((pat.name || '?').slice(0, 1)) + '</div><div><b style="font-size:1.05rem">' + hgxEsc(pat.name) + '</b><span class="mx-cdept" style="display:block;margin-top:3px">' + hgxEsc(pat.sex || '—') + ' · ' + age + ' · 档案号 ' + hgxEsc(pat.pid || '') + ' · ' + hgxEsc(pat.phone || '') + '</span></div></div>'];
+  var tags = pat.tags || [];
+  if(tags.length){
+    h.push('<div class="ph-hits" style="margin-top:10px">');
+    for(var i = 0; i < tags.length; i++){ h.push('<span class="rc-chip">' + hgxEsc(tags[i]) + '</span>'); }
+    h.push('</div>');
+  }
+  h.push('<p class="mx-mut" style="font-size:.72rem;margin-top:8px">建档：' + hgxEsc(pat.created || '—') + ' · 演示合成档案</p></div>');
+  return h.join('');
+}
+
+function rcTimeline(hist){
+  var list = (hist || []).slice();
+  list.sort(function(a, b){ return String(b.date || '').localeCompare(String(a.date || '')); });
+  var h = ['<div class="mx-card"><div class="mx-ch"><b>既往记录</b><span class="mx-cdept">共 ' + list.length + ' 条 · 新的在前</span></div><div class="rc-tl">'];
+  for(var i = 0; i < list.length; i++){
+    var it = list[i];
+    h.push('<div class="rc-tl-item"><span class="rc-tl-dot"></span><div class="rc-tl-date">' + hgxEsc(it.date || '') + ' · ' + hgxEsc(it.dept || '') + '</div><div class="rc-tl-title">' + hgxEsc(it.title || '') + '</div><div class="rc-tl-detail">' + hgxEsc(it.detail || '') + '</div></div>');
+  }
+  if(!list.length){ h.push('<p class="mx-mut">暂无记录</p>'); }
+  h.push('</div></div>');
+  return h.join('');
+}
+
+function paintRecordBound(d){
+  var pat = d.patient || {};
+  var photos = d.photos || [];
+  var hist = pat.history || [];
+  var lastVisit = '';
+  for(var i = 0; i < hist.length; i++){ if(!lastVisit || String(hist[i].date || '') > lastVisit){ lastVisit = String(hist[i].date || ''); } }
+  var h = [];
+  h.push('<div class="mx-card"><div class="mx-ch"><b>我的健康档案</b><span class="mx-badge mx-model">已关联功能</span><span class="mx-cdept">演示数据</span></div>');
+  h.push(rcPatCard(pat).replace('<div class="mx-card">', '<div style="margin-top:8px">').replace(/<\/div>$/, '</div>'));
+  h.push('<div class="rc-stats">');
+  h.push('<div class="rc-stat"><b>' + hist.length + '</b><span>既往记录</span></div>');
+  h.push('<div class="rc-stat"><b>' + (d.photo_count != null ? d.photo_count : photos.length) + '</b><span>拍照分析记录</span></div>');
+  h.push('<div class="rc-stat"><b>' + hgxEsc(lastVisit || '—') + '</b><span>最近就诊</span></div>');
+  h.push('</div>');
+  h.push('<div class="mx-acts"><button class="btn ghost dark sm" id="rcUnbind" type="button">更换绑定（解除）</button><button class="btn ghost dark sm" id="rcGoPhoto" type="button">去拍照分析</button><button class="btn ghost dark sm" id="rcGoDiag" type="button">去 AI 诊断</button></div>');
+  h.push('<p class="mx-mut" style="font-size:.72rem">· AI 诊断：采纳 / 修正诊断后自动写入本档案（诊断页会显示既往史提示）<br>· 拍照分析：结果与图片自动关联，支持与上次记录对比</p>');
+  h.push('</div>');
+  h.push(rcTimeline(hist));
+  if(photos.length){
+    var tk = hgxTok();
+    h.push('<div class="mx-card"><div class="mx-ch"><b>拍照分析记录</b><span class="mx-cdept">最近 ' + photos.length + ' 条 · 仅本人可见</span></div><div class="rc-photos">');
+    for(var p = 0; p < photos.length; p++){
+      h.push('<div class="rc-ph"><img src="/api/photo/image/' + hgxEsc(photos[p].id) + '?token=' + hgxEsc(tk) + '" alt=""><span>' + hgxEsc(photos[p].time || '') + '<br>' + hgxEsc(photos[p].top || '') + '</span></div>');
+    }
+    h.push('</div></div>');
+  }
+  viewHost.innerHTML = h.join('');
+  var arm = false, ub = QS('#rcUnbind');
+  ub.addEventListener('click', function(){
+    if(!arm){
+      arm = true; ub.textContent = '再次点击确认解除';
+      setTimeout(function(){ arm = false; ub.textContent = '更换绑定（解除）'; }, 3000);
+      return;
+    }
+    hgxPost('/api/patient/unbind', {}).then(function(){ toast('已解除绑定'); paintRecord(); });
+  });
+  QS('#rcGoPhoto').addEventListener('click', function(){ openView('photo'); });
+  QS('#rcGoDiag').addEventListener('click', function(){ openView('diag'); });
+}
+
+/* ============================================================
+   v4.8 应用台外壳：视图切换 / 概览 / 登录注册 / 手机适配
    ============================================================ */
 var viewHost = QS('#viewHost'), vTitle = QS('#vTitle'), vSub = QS('#vSub');
 var ACTIVE = '';
+var HGX_PAT = null;
 function enterView(title, sub){
   vTitle.textContent = title || '';
   vSub.textContent = sub || '';
@@ -1018,6 +1441,7 @@ function closeSide(){ QS('#side').classList.remove('open'); QS('#sideMask').clas
 function openView(name){
   var ok = true;
   if(name === 'home'){ ACTIVE = 'home'; setNav('home'); renderHome(); }
+  else if(name === 'record'){ ACTIVE = 'record'; setNav('record'); mxOpenRecord(); }
   else if(name === 'diag'){ ACTIVE = 'diag'; setNav('diag'); mxOpenDiag(); }
   else if(name === 'graph'){ ACTIVE = 'graph'; setNav('graph'); mxOpenGraph(); }
   else if(name === 'fl'){ ACTIVE = 'fl'; setNav('fl'); mxOpenFL(); }
@@ -1034,8 +1458,18 @@ addEventListener('hashchange', function(){
   if(h && h !== ACTIVE){ openView(h); }
 });
 
+/* ---------- 健康档案提示（关联到诊断等模块） ---------- */
+function loadPat(){ hgxGet('/api/patient/me').then(function(d){ HGX_PAT = d || null; }).catch(function(){}); }
+function patNote(){
+  if(!HGX_PAT || !HGX_PAT.bound || !HGX_PAT.patient){ return ''; }
+  var p = HGX_PAT.patient;
+  var tgs = (p.tags || []).join('、');
+  return '<div class="mx-note rc-patnote">已关联健康档案：<b>' + hgxEsc(p.name) + '</b>' + (tgs ? '（既往：' + hgxEsc(tgs) + '）' : '') + ' · 采纳诊断后将自动写入档案</div>';
+}
+
 /* ---------- 概览 ---------- */
 var HOME_ICONS = {
+  record: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M10 13h4M12 11v4"/>',
   diag: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h5"/><path d="M8 17l2-2 1.6 1.6L15.5 13"/>',
   graph: '<circle cx="12" cy="6" r="2.4"/><circle cx="6" cy="17" r="2.4"/><circle cx="18" cy="17" r="2.4"/><path d="M10.8 8.1L7.2 14.9M13.2 8.1l3.6 6.8M8.4 17h7.2"/>',
   fl: '<circle cx="12" cy="12" r="2.6"/><circle cx="5" cy="6" r="1.7"/><circle cx="19" cy="6" r="1.7"/><circle cx="5" cy="18" r="1.7"/><circle cx="19" cy="18" r="1.7"/><path d="M6.4 7.1l3.7 3.3M17.6 7.1l-3.7 3.3M6.4 16.9l3.7-3.3M17.6 16.9l-3.7-3.3"/>',
@@ -1054,11 +1488,12 @@ function renderHome(){
   h.push('<p>' + hgxEsc(roleTxt) + ' · 数据不出院，智慧可共享。<br>从左侧选择功能，或点击下方卡片进入。</p>');
   h.push('<div class="home-chips" id="homeChips"></div></div>');
   h.push('<div class="home-grid">');
+  h.push(homeCard('record', '病历档案', '身份核验 → 查询既往病例史；AI 诊断与拍照分析结果自动关联档案。'));
   h.push(homeCard('diag', 'AI 辅助诊断', '点选症状 → 鉴别诊断排名 → 推荐检查 / 用药 / 病因 / 预防。'));
   h.push(homeCard('graph', '知识图谱', '24 类疾病 × 症状 / 药物 / 检查 可视化网络：本院视图与联邦聚合视图。'));
   h.push(homeCard('fl', '联邦训练演示', '六院协同训练实时演示：参数如何流动，误差如何走低——数据不出院。'));
   h.push(homeCard('chat', 'AI 医疗问答', '基于院内知识库的智能问答助手，辅助快速了解病情要点。'));
-  h.push(homeCard('photo', '拍照分析', '拍摄皮肤患处 → 初步分析（伤情 / 来源 / 严重度）→ 护理与用药参考。'));
+  h.push(homeCard('photo', '拍照分析', '拍摄皮肤患处 → 全过程分析（识别 / 相似病例对比 / 历史记忆）→ 护理与就医建议。'));
   h.push('</div>');
   viewHost.innerHTML = h.join('');
   QSA('.hcard').forEach(function(b){ b.addEventListener('click', function(){ openView(b.getAttribute('data-v')); }); });
@@ -1092,13 +1527,14 @@ function boot(user){
   QS('#userChip').textContent = HGX.name + (HGX.isCenter ? ' · 中心' : ' · ' + HGX.hospital + ' 院');
   QS('#authScreen').hidden = true;
   QS('#appShell').hidden = false;
+  loadPat();
   hgxGet('/api/fl/status').then(function(st){
     if(st && st.trained){ QS('#modelBadge').textContent = '全局模型 v' + st.version; }
   }).catch(function(){});
   var h = (location.hash || '').replace('#', ''), v = q.get('view') || q.get('module') || '';
   if(!v){ if(q.get('pick')){ v = 'diag'; } else if(q.get('photosample')){ v = 'photo'; } }
   var first = h || v;
-  var allow = ['home', 'diag', 'graph', 'fl', 'chat', 'photo'];
+  var allow = ['home', 'record', 'diag', 'graph', 'fl', 'chat', 'photo'];
   openView(allow.indexOf(first) >= 0 ? first : 'home');
 }
 QSA('.auth-tab').forEach(function(t){

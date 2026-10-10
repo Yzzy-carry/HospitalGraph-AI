@@ -1,0 +1,85 @@
+{
+ "A": [
+  {
+   "symptoms": [
+    "胸痛",
+    "呼吸困难"
+   ],
+   "disease": "急性心梗",
+   "action": "adopt",
+   "ts": 1791114006
+  },
+  {
+   "symptoms": [
+    "发热",
+    "咳嗽"
+   ],
+   "disease": "肺炎",
+   "action": "correct",
+   "ts": 1791114006
+  },
+  {
+   "symptoms": [
+    "发热",
+    "咳嗽"
+   ],
+   "disease": "流行性感冒",
+   "action": "adopt",
+   "ts": 1791114808
+  },
+  {
+   "symptoms": [
+    "恶心",
+    "发热"
+   ],
+   "disease": "急性阑尾炎",
+   "action": "adopt",
+   "ts": 1791115979
+  },
+  {
+   "symptoms": [
+    "头痛",
+    "恶心"
+   ],
+   "disease": "偏头痛",
+   "action": "adopt",
+   "ts": 1791423320
+  },
+  {
+   "symptoms": [
+    "腹泻",
+    "呕吐",
+    "恶心"
+   ],
+   "disease": "急性胃肠炎",
+   "action": "adopt",
+   "ts": 1791423990
+  },
+  {
+   "symptoms": [
+    "皮疹",
+    "瘙痒",
+    "风团"
+   ],
+   "disease": "荨麻疹",
+   "action": "adopt",
+   "ts": 1791423993
+  }
+ ],
+ "B": [
+  {
+   "symptoms": [
+    "尿频",
+    "尿急",
+    "尿痛"
+   ],
+   "disease": "尿路感染",
+   "action": "adopt",
+   "ts": 1791423547
+  }
+ ],
+ "C": [],
+ "D": [],
+ "E": [],
+ "F": []
+}

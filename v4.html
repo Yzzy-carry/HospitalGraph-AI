@@ -628,13 +628,20 @@ body.mx-open{overflow:hidden}
 <section class="wb-sec" id="workbench">
   <div class="wrap">
     <div class="eyebrow blue rv">06 · 工作台</div>
-    <h2 class="sec-title dark rv">五大模块，登录后启用</h2>
+    <h2 class="sec-title dark rv">六大模块，登录后启用</h2>
     <div class="wb-status" id="wbBar">
       <span class="st-dot"></span>
       <span id="wbBarName">当前未登录 · 登录后进入应用台</span>
-      <span class="mut">已接入后端 · v4.5</span>
+      <span class="mut">已接入后端 · v4.8</span>
     </div>
     <div class="wb-grid locked" id="wbGrid">
+
+      <div class="wcard">
+        <svg class="wic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M10 13h4M12 11v4"/></svg>
+        <h3>病历档案</h3>
+        <p class="desc">身份核验 → 查询既往病例史；AI 诊断与拍照分析结果自动关联个人档案（演示合成数据）。</p>
+        <div class="wrow"><span class="wstat live">已接入 · 病史关联</span><button class="btn primary sm" data-module="record">进入</button></div>
+      </div>
 
       <div class="wcard">
         <svg class="wic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h5"/><path d="M8 17l2-2 1.6 1.6L15.5 13"/></svg>
@@ -674,7 +681,7 @@ body.mx-open{overflow:hidden}
       <div class="wcard">
         <svg class="wic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2.2"/><circle cx="12" cy="13.4" r="3.6"/><path d="M8.6 7l1.3-2.2h4.2L15.4 7"/></svg>
         <h3>拍照分析</h3>
-        <p class="desc">拍摄皮肤患处 → AI 初步分析（伤情 / 可能来源 / 严重度）→ 护理与用药参考 → 就医分级。含昆虫叮咬来源推断。</p>
+        <p class="desc">拍摄皮肤患处 → 全程可见的分析（识别 / 相似病例对比 / 历史记忆）→ 护理与用药参考 → 就医分级。含昆虫叮咬来源推断。</p>
         <div class="wrow"><span class="wstat live">已接入 · 视觉分析</span><button class="btn primary sm" data-module="photo">进入</button></div>
       </div>
 
@@ -715,7 +722,7 @@ body.mx-open{overflow:hidden}
           <tr><td>计算过程</td><td>公式卡 + 计算演示台（参数/误差大图、明细表、计算流水）</td><td>按钮步进 / 自动播放 / 曲线逐轮绘制</td></tr>
           <tr><td>数据测验</td><td>平台自模拟数据规模（6 / 9 / 32 / 27 / 24 / 99）</td><td>数字滚动增长</td></tr>
           <tr><td>登录</td><td>按医院区分的账户体系</td><td>校验 / 错误 / 成功三状态</td></tr>
-          <tr><td>工作台</td><td>五大模块（联邦演示可交互）</td><td>登录后解锁</td></tr>
+          <tr><td>工作台</td><td>六大模块（联邦演示可交互）</td><td>登录后解锁</td></tr>
         </table>
         <p><b>② 演示账号（密码统一 demo2026）</b></p>
         <table>

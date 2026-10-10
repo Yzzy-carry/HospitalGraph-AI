@@ -1,0 +1,43 @@
+{
+ "A": {
+  "wound": {
+   "红肿 / 皮疹": 11
+  },
+  "insect": {},
+  "level": {
+   "建议就医": 1,
+   "自行处理": 10
+  },
+  "total": 11
+ },
+ "B": {
+  "wound": {},
+  "insect": {},
+  "level": {},
+  "total": 0
+ },
+ "C": {
+  "wound": {},
+  "insect": {},
+  "level": {},
+  "total": 0
+ },
+ "D": {
+  "wound": {},
+  "insect": {},
+  "level": {},
+  "total": 0
+ },
+ "E": {
+  "wound": {},
+  "insect": {},
+  "level": {},
+  "total": 0
+ },
+ "F": {
+  "wound": {},
+  "insect": {},
+  "level": {},
+  "total": 0
+ }
+}
