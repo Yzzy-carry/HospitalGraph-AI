@@ -15,11 +15,35 @@ import os
 
 app = Flask(__name__)
 
+# ── 配置加载（v4.9.3）：支持项目根目录 .env 文件与环境变量，便于复现与部署 ──
+# 优先级：环境变量 > .env 文件 > 代码内默认值（默认值即原有本地配置，向后兼容）
+def _load_dotenv():
+    """读取项目根目录 .env（简易解析，无需额外依赖）；已存在的环境变量不覆盖。"""
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+    if not os.path.exists(path):
+        return
+    try:
+        with open(path, encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                k, v = k.strip(), v.strip().strip('"').strip("'")
+                if k and k not in os.environ:
+                    os.environ[k] = v
+        print("[配置] 已加载 .env")
+    except Exception as e:
+        print("[配置] .env 读取失败：%s" % e)
+
+
+_load_dotenv()
+
 DB = {
-    "host": "localhost",
-    "user": "root",
-    "password": "",
-    "database": "hospital_graph",
+    "host": os.environ.get("HG_DB_HOST", "localhost"),
+    "user": os.environ.get("HG_DB_USER", "root"),
+    "password": os.environ.get("HG_DB_PASSWORD", ""),
+    "database": os.environ.get("HG_DB_NAME", "hospital_graph"),
     "charset": "utf8",
     "cursorclass": pymysql.cursors.DictCursor,
 }
@@ -2747,6 +2771,8 @@ _photohist_load()
 if __name__ == "__main__":
     print("=" * 50)
     print("  联邦医院知识图谱AI — 后端已启动（v4.9 可解释 + 差分隐私版）")
+    print("  数据库: %s / %s（可用 .env 的 HG_DB_* 覆盖）" % (DB["host"], DB["database"]))
+    print("  百炼 Key: %s" % ("已配置" if BAILIAN_API_KEY else "未配置（问答/拍照识别不可用，其余功能正常）"))
     print("  访问: http://localhost:5000")
     print("  API 列表:")
     print("    GET  /api/hospitals       — 医院列表")
