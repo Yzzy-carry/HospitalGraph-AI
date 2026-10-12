@@ -1,7 +1,8 @@
 ﻿param([switch]$Stop)
 
 $ErrorActionPreference = 'Stop'
-$P = 'C:\Users\user\Desktop\HospitalGraph-AI'
+# 项目根目录 = 本脚本所在目录
+$P = $PSScriptRoot
 $LogDir = Join-Path $P 'logs'
 New-Item -ItemType Directory -Force $LogDir | Out-Null
 $Log = Join-Path $LogDir ('phone_launcher_' + (Get-Date -Format 'yyyyMMdd_HHmmss') + '.log')
@@ -20,8 +21,7 @@ function Show-Alert([string]$m){
 function Find-Python {
   $cands = @(
     (Join-Path $P 'runtime\python.exe'),
-    (Join-Path $P '.venv\Scripts\python.exe'),
-    'C:\Users\user\Desktop\pycharm项目文件夹\.venv\Scripts\python.exe'
+    (Join-Path $P '.venv\Scripts\python.exe')
   )
   foreach($c in $cands){ if($c -and (Test-Path $c)){ return $c } }
   $cmd = Get-Command python -ErrorAction SilentlyContinue
@@ -149,7 +149,6 @@ try{
     $qrCands = @()
     if($pyExe){ $qrCands += $pyExe }
     $qrCands += (Find-Python)
-    $qrCands += 'C:\Users\user\anaconda3\python.exe'
     $qrPy = $null
     foreach($c in ($qrCands | Where-Object { $_ } | Select-Object -Unique)){
       if(Test-Path $c){

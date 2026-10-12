@@ -1,11 +1,12 @@
 {
- "enabled": true,
- "chat_id": "oc_00000000000000000000000000000000",
- "openclaw_config": "C:\\Users\\user\\.openclaw-autoclaw\\openclaw.json",
+ "enabled": false,
+ "chat_id": "",
+ "openclaw_config": "",
  "events": {
   "feedback": true,
   "photo": true,
   "chat": true,
   "train": true
- }
+ },
+ "_note": "飞书推送为非必需功能；填写 chat_id 并设置环境变量 HG_FEISHU_CONFIG 后启用"
 }

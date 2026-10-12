@@ -29,7 +29,9 @@ _LOG_FILE = os.path.join(BASE, "logs", "feishu_notify.log")
 _DEFAULT_CFG = {
     "enabled": True,
     "chat_id": "oc_00000000000000000000000000000000",
-    "openclaw_config": r"C:\Users\user\.openclaw-autoclaw\openclaw.json",
+    # 飞书应用凭证的读取位置（可选）。默认从环境变量 HG_FEISHU_CONFIG 读取；
+    # 不配置时飞书推送静默跳过，不影响任何主流程。
+    "openclaw_config": os.environ.get("HG_FEISHU_CONFIG", ""),
     "events": {"feedback": True, "photo": True, "chat": True, "train": True},
 }
 
@@ -99,6 +101,8 @@ def _token():
         if _tok["v"] and now < _tok["exp"] - 300:
             return _tok["v"]
     path = _cfg().get("openclaw_config") or _DEFAULT_CFG["openclaw_config"]
+    if not path or not os.path.exists(path):
+        raise RuntimeError("未配置 HG_FEISHU_CONFIG（飞书应用凭证），跳过推送")
     with open(path, encoding="utf-8") as f:
         conf = json.load(f)
     accs = ((conf.get("channels") or {}).get("feishu") or {}).get("accounts") or {}
