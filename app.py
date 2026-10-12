@@ -176,6 +176,22 @@ def api_symptoms():
 
 # ── API: 症状推理诊断（三因素加权 · 联邦全局模型接入 · 需登录）──
 
+def _dx_differential(did, ds_symptoms, dx_syms, diseases):
+    """v4.9：按「共享症状数」给出易混淆病种（知识图谱的鉴别维度），返回 [{name, shared, common:[...]}]"""
+    mine = set(ds_symptoms)
+    out = []
+    for d2 in diseases:
+        if d2["id"] == did:
+            continue
+        other = set(dx_syms.get(d2["id"], []))
+        common = mine & other
+        if len(common) >= 2:
+            out.append({"name": d2["name"], "dept": d2["dept"], "shared": len(common),
+                        "common": sorted(common)})
+    out.sort(key=lambda x: (-x["shared"], x["name"]))
+    return out
+
+
 @app.route("/api/diagnose", methods=["POST"])
 def api_diagnose():
     acc = _sess(request)
@@ -212,30 +228,46 @@ def api_diagnose():
         }
 
     diseases = q("SELECT * FROM diseases")
+    # v4.9：一次性取全部病-症关系（替代按病逐条的 N+1 查询），同时用于鉴别疾病计算
+    _dx_syms = {}
+    for _r in q("SELECT ds.disease_id AS did, s.name AS nm FROM disease_symptoms ds "
+                "JOIN symptoms s ON s.id = ds.symptom_id"):
+        _dx_syms.setdefault(_r["did"], []).append(_r["nm"])
     results = []
     for d in diseases:
-        ds_symptoms = [
-            x["name"]
-            for x in q(
-                "SELECT s.name FROM symptoms s "
-                "JOIN disease_symptoms ds ON s.id = ds.symptom_id "
-                "WHERE ds.disease_id = %s",
-                d["id"],
-            )
-        ]
+        ds_symptoms = _dx_syms.get(d["id"], [])
         matched_syms = [s for s in symptoms if s in ds_symptoms]
         matched = len(matched_syms)
         if matched == 0:
             continue
 
         # 症状匹配度（60%）：全局模型 → 按学得的症状权重加权；否则基础公式（均钳制 ≤1）
+        # v4.9：同时记录每个命中症状的权重与贡献占比，供前端展示「为什么是这个分」
+        contributions = []
         if W is not None and d["name"] in W:
             wd = W[d["name"]]
-            num = sum(float(wd.get(s, 1.0)) for s in matched_syms)
-            den = sum(float(wd.get(s, 1.0)) for s in ds_symptoms) or 1.0
+            w_all = {s: float(wd.get(s, 1.0)) for s in ds_symptoms}
+            num = sum(w_all.get(s, 1.0) for s in matched_syms)
+            den = sum(w_all.values()) or 1.0
             sm_score = min(1.0, num / den)
+            for s in matched_syms:
+                w_s = w_all.get(s, 1.0)
+                contributions.append({
+                    "symptom": s,
+                    "weight": round(w_s, 3),
+                    "share": round(w_s / den, 4),
+                })
         else:
             sm_score = min(1.0, matched / max(len(ds_symptoms), 1))
+            den0 = max(len(ds_symptoms), 1)
+            for s in matched_syms:
+                contributions.append({
+                    "symptom": s,
+                    "weight": 1.0,
+                    "share": round(1.0 / den0, 4),
+                })
+        contributions.sort(key=lambda x: x["share"], reverse=True)
+        contributions = contributions[:8]
 
         # 本地发病率 (20%)
         rate_row = q(
@@ -296,6 +328,22 @@ def api_diagnose():
                     "prevention": prevs,
                     "cause": d["cause"],
                     "urgent": d["severity"] in ("危急", "严重"),
+                    # ── v4.9 可解释性：三因素拆解 + 症状贡献 + 鉴别疾病 ──
+                    "factors": [
+                        {"key": "symptom", "label": "症状匹配", "weight": 0.6,
+                         "raw": round(sm_score, 4), "points": round(sm_score * 60, 1),
+                         "detail": "命中 %d/%d 个关联症状%s" % (
+                             matched, len(ds_symptoms),
+                             ("，按模型学到的重要度加权" if (W is not None and d["name"] in W) else "，基础版按等权计"))},
+                        {"key": "prevalence", "label": "本院发病率", "weight": 0.2,
+                         "raw": round(br_score, 4), "points": round(br_score * 20, 1),
+                         "detail": "本院历史发病率 %s%%" % round(avg_rate * 100, 2)},
+                        {"key": "severity", "label": "严重度", "weight": 0.2,
+                         "raw": round(sv_score, 4), "points": round(sv_score * 20, 1),
+                         "detail": "病种严重度：%s" % d["severity"]},
+                    ],
+                    "contributions": contributions,
+                    "differential": _dx_differential(d["id"], ds_symptoms, _dx_syms, diseases)[:3],
                 }
             )
 
@@ -889,6 +937,24 @@ _FL_LR = 1.6
 _FL_EPOCHS = 10
 _FL_SOLO_EPOCHS = 40
 
+# ── v4.9：训练超参对外口径（供落地页/工作台显示，避免两套数字）──
+_FL_SUMMARY = {
+    "lr": _FL_LR,
+    "epochs": _FL_EPOCHS,
+    "solo_epochs": _FL_SOLO_EPOCHS,
+    "aggregate": "FedAvg（按样本量加权）",
+    "rounds_default": 15,
+}
+
+# ── v4.9：差分隐私（DP-SGD 风格）常量与状态 ──
+# 机制：客户端每轮先按阈值 C 裁剪参数更新，再叠加高斯噪声 N(0, σ²C²)，
+#       理论隐私预算按经典高斯机制 ε = Δf·sqrt(2·ln(1.25/δ))/σ 估计（Δf = C）。
+_DP_CLIP = 4.0            # 参数更新裁剪阈值 C
+_DP_DELTA = 1e-5          # 目标 δ
+_DP_SIGMAS = [0.0, 0.2, 0.5, 1.0, 2.0]   # 对比用噪声倍数（0 = 无噪声基线）
+_DP_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data", "fed_dp.json")
+_DP_LAST = None
+
 _MODEL = {
     "w": None,
     "version": 0,
@@ -998,9 +1064,50 @@ def _fed_dataset():
         holdout[hid] = synth(rng_h, prior, n_hold)
     return names, syms, dsyms, cases, holdout, fb_counts
 
-def _fed_run(rounds=15):
-    """真实 FedAvg：六院本地训练多分类诊断评分模型 → 按样本量加权聚合；含留出集评估"""
+def _dp_epsilon(sigma, delta=_DP_DELTA, rounds=1, compose=True):
+    """差分隐私预算估计（演示级口径，诚实标注边界）。
+
+    机制：对「参数更新量 Δ」按阈值 C 裁剪（灵敏度上界 Δf = max_i(n_i/N)·C），
+          再加高斯噪声 N(0, (σ·Δf)²) ⇒ 单轮 ε = sqrt(2·ln(1.25/δ)) / σ。
+
+    多轮（可选）：按**基本组合定理**（basic composition）给出最坏情况总预算
+          ε_total = T · ε_single。
+    注意（重要）：
+      · 这是教学演示用的**估计**，不是严格 DP 会计（未用 RDP/矩会计等紧致方法）；
+      · 基本组合是**保守（偏大）**的多轮上界；而单轮值若直接当作总预算使用则是**乐观（偏小）**的，
+        因此接口同时返回两者，并由前端分别标注。
+    """
+    import math as _m
+    if not sigma or sigma <= 0:
+        return {"single": None, "total": None, "rounds": int(rounds),
+                "note": "σ=0 即无噪声，无隐私保证"}
+    try:
+        e1 = float(_m.sqrt(2.0 * _m.log(1.25 / float(delta))) / float(sigma))
+    except Exception:
+        return {"single": None, "total": None, "rounds": int(rounds), "note": "计算失败"}
+    total = e1 * float(rounds) if compose else None
+    return {"single": round(e1, 3), "total": (round(total, 3) if total is not None else None),
+            "rounds": int(rounds),
+            "note": "single=单轮估计；total=T 轮基本组合（保守上界）"}
+
+
+def _fed_run(rounds=15, sigma=0.0, clip=_DP_CLIP, dp_seed=None):
+    """真实 FedAvg：六院本地训练多分类诊断评分模型 → 按样本量加权聚合；含留出集评估。
+
+    v4.9：加入差分隐私（DP-SGD 风格）——sigma > 0 时，
+        每院上传前先按 clip 裁剪参数更新，再叠加高斯噪声 N(0, (sigma*clip)^2)，
+        实现「连参数也不精确出院」；sigma = 0 即原始 FedAvg（对照基线）。
+    """
     import numpy as _fnp
+    _dprng = _fnp.random.RandomState(int(dp_seed) if dp_seed is not None else 20261012)
+    _dp_on = bool(sigma and sigma > 0)
+    _dp_clip_req = float(clip)
+    _dp_clip = float(clip)          # 实际生效的裁剪阈值（自适应后可覆盖）
+    _dp_sigma = float(sigma)
+    _dp_calib = False               # 是否已按首轮更新范数标定阈值
+    _dp_noise_scale = None          # 实际使用的噪声标准差（聚合灵敏度 × σ）
+    _w_max = max(nn for _, _, nn in _FL_SPECS) / max(1.0, float(sum(nn for _, _, nn in _FL_SPECS)))
+    _sens = None                    # 实际使用的灵敏度（w_max × C）
     names, syms, dsyms, cases, holdout, fb_counts = _fed_dataset()
     D = len(names)
     S = len(syms)
@@ -1069,8 +1176,37 @@ def _fed_run(rounds=15):
             bs.append(bl)
             ns.append(len(Y))
         tot = float(sum(ns))
-        W = sum(wl * (nn / tot) for wl, nn in zip(Ws, ns))
-        b = sum(bl * (nn / tot) for bl, nn in zip(bs, ns))
+        # 各院相对全局模型的「参数更新量」
+        dWs = [wl - W for wl in Ws]
+        dbs = [bl - b for bl in bs]
+        if _dp_on and not _dp_calib:
+            # 自适应裁剪阈值：首轮各院更新范数的中位数（DP 常见做法，避免手工设定绝对阈值）
+            import statistics as _st
+            _norms = [float(_fnp.linalg.norm(_dw)) for _dw in dWs]
+            _dp_clip = max(1e-6, float(_st.median(_norms)))
+            _dp_calib = True
+        if _dp_on:
+            # ① 逐院裁剪：限制任一医院的更新量贡献（个体影响上界 C）
+            def _clip_dp(_d):
+                _nrm = float(_fnp.linalg.norm(_d))
+                if _nrm > _dp_clip > 0:
+                    return _d * (_dp_clip / _nrm)
+                return _d
+            dWs = [_clip_dp(_dw) for _dw in dWs]
+            dbs = [_clip_dp(_db) for _db in dbs]
+        aggW = sum(_dw * (nn / tot) for _dw, nn in zip(dWs, ns))
+        aggb = sum(_db * (nn / tot) for _db, nn in zip(dbs, ns))
+        if _dp_on:
+            # ② 高斯机制：噪声标准差 = σ × 聚合灵敏度。
+            #    聚合为样本加权平均 Σ(n_i/N)·Δ_i，单院最大权重 w_max = max_i(n_i/N)，
+            #    故灵敏度上界 Δf = w_max · C（裁剪保证 ‖Δ_i‖ ≤ C）。
+            _w_max = max(nn for _, _, nn in _FL_SPECS) / max(1.0, float(sum(nn for _, _, nn in _FL_SPECS)))
+            _sens = _w_max * _dp_clip
+            _dp_noise_scale = _dp_sigma * _sens
+            aggW = aggW + _dprng.normal(0.0, _dp_noise_scale, aggW.shape)
+            aggb = aggb + _dprng.normal(0.0, _dp_noise_scale, aggb.shape)
+        W = W + aggW
+        b = b + aggb
         loss, acc = pooled_eval(W, b)
         history.append({"r": r, "loss": loss, "acc": acc})
 
@@ -1111,6 +1247,16 @@ def _fed_run(rounds=15):
         "params": n_params,
         "weights": weights,
         "note": "真实 FedAvg · 合成模拟数据（非真实患者数据）+ 本院反馈样本 · 训练完成后全局模型自动供诊断引擎调用",
+        "dp": ({"enabled": True, "sigma": round(_dp_sigma, 4),
+                "clip_threshold": round(_dp_clip, 6),
+                "clip_rule": "首轮各院更新范数的中位数（自适应）",
+                "weight_max": round(_w_max, 6),
+                "noise_std": (round(_dp_noise_scale, 6) if _dp_noise_scale else None),
+                "sensitivity": (round(_sens, 6) if _dp_noise_scale else None),
+                "delta": _DP_DELTA,
+                "epsilon": _dp_epsilon(_dp_sigma, rounds=rounds),
+                "theoretical_note": "演示级估计：单轮为高斯机制公式；多轮为基本组合（保守上界），非严格 DP 会计"}
+               if _dp_on else {"enabled": False, "sigma": 0.0}),
     }
 
 def _restore_last():
@@ -1242,6 +1388,7 @@ def api_feedback():
     try:
         _patient_add_record(acc["username"], {
             "date": _ftime.strftime("%Y-%m-%d"), "dept": "线上服务",
+            "hospital": acc.get("hospital") or "",
             "title": ("采纳诊断 · " if action == "adopt" else "修正诊断 · ") + disease.strip(),
             "detail": "症状：" + "、".join(symptoms[:8]) + "；结论：" + disease.strip(),
         })
@@ -1359,6 +1506,77 @@ def api_fl_train():
     return jsonify(_FL_LAST)
 
 
+@app.route("/api/fl/dp", methods=["GET", "POST", "OPTIONS"])
+def api_fl_dp():
+    """v4.9：差分隐私对比实验——同一数据/轮次下，跑多档噪声 σ，返回 精度 vs 隐私预算 曲线。
+
+    只读实验：不写入全局模型、不影响线上诊断（结果单独持久化到 data/fed_dp.json）。
+    """
+    global _DP_LAST
+    if request.method == "OPTIONS":
+        return ("", 204)
+    acc = _sess(request)
+    if not acc:
+        return _deny()
+    if request.method == "GET" and _DP_LAST is not None and request.args.get("cache") == "1":
+        return jsonify(_DP_LAST)
+    rounds = request.args.get("rounds", _FL_SUMMARY["rounds_default"], type=int)
+    rounds = max(1, min(30, rounds))
+    sigmas_raw = request.args.get("sigmas")
+    sigmas = _DP_SIGMAS
+    if sigmas_raw:
+        try:
+            sigmas = [max(0.0, float(x)) for x in str(sigmas_raw).split(",")][:6]
+        except Exception:
+            sigmas = _DP_SIGMAS
+    curves = []
+    for sg in sigmas:
+        r = _fed_run(rounds, sigma=sg, dp_seed=None)
+        _dpr = r.get("dp") or {}
+        _eps = _dp_epsilon(sg, rounds=rounds) if sg > 0 else {"single": None, "total": None, "rounds": rounds, "note": "无噪声"}
+        curves.append({
+            "sigma": round(float(sg), 4),
+            "epsilon": _eps.get("single"),
+            "epsilon_total": _eps.get("total"),
+            "rounds": rounds,
+            "clip_threshold": _dpr.get("clip_threshold"),
+            "sensitivity": _dpr.get("sensitivity"),
+            "noise_std": _dpr.get("noise_std"),
+            "weight_max": _dpr.get("weight_max"),
+            "loss_base": r["history"][0]["loss"],
+            "loss": r["final"]["loss"],
+            "acc": r["final"]["acc"],
+            "holdout_acc": (r.get("holdout") or {}).get("acc"),
+            "holdout_n": (r.get("holdout") or {}).get("n"),
+            "history": r["history"],
+        })
+    base = next((c for c in curves if not c["sigma"]), None)
+    for c in curves:
+        if base and base["acc"] and c["sigma"]:
+            c["acc_drop"] = round(float(base["acc"]) - float(c["acc"]), 1)
+        elif not c["sigma"]:
+            c["acc_drop"] = 0.0
+        else:
+            c["acc_drop"] = None   # 无基线档时不给数字，避免「零下降」的失真
+    _DP_LAST = {
+        "ok": True,
+        "generated_at": _ftime.strftime("%Y-%m-%d %H:%M:%S"),
+        "rounds": rounds,
+        "delta": _DP_DELTA,
+        "curves": curves,
+        "note": ("差分隐私对比（演示级）：对参数更新量按自适应阈值 C 裁剪，再加高斯噪声 "
+                 "N(0,(σ·w_max·C)²)，其中 w_max 为最大院样本权重（当前 %.4f）；"
+                 "ε_single 为单轮高斯机制估计，ε_total 为 %d 轮基本组合的保守上界；"
+                 "非严格 DP 会计；每档均为同数据同轮次的独立实验，不写入全局模型。"
+                 % (max(nn for _, _, nn in _FL_SPECS) / max(1.0, float(sum(nn for _, _, nn in _FL_SPECS))), rounds)),
+    }
+    try:
+        _atomic_write(_DP_FILE, _DP_LAST)
+    except Exception as _de:
+        print("[v4.9] DP 结果保存失败：%s" % _de)
+    return jsonify(_DP_LAST)
+
+
 @app.route("/api/fl/status")
 def api_fl_status():
     acc = _sess(request)
@@ -1380,6 +1598,11 @@ def api_fl_status():
         "holdout_acc": _MODEL.get("holdout_acc"),
         "holdout_n": _MODEL.get("holdout_n"),
         "feedback_total": _MODEL.get("feedback_total"),
+        "hyper": _FL_SUMMARY,
+        "dp": ({"clip": _DP_CLIP, "delta": _DP_DELTA, "sigmas": _DP_SIGMAS,
+                "last_generated_at": (_DP_LAST or {}).get("generated_at")}),
+        "graph_scale": {"diseases": len(q("SELECT id FROM diseases")),
+                        "symptoms": len(q("SELECT id FROM symptoms"))},
     })
 
 
@@ -1387,6 +1610,20 @@ _load_model()
 _restore_last()
 _load_aux()
 _rusers_load()
+
+def _dp_load():
+    """v4.9：加载上次差分隐私对比结果（缺失则忽略）"""
+    global _DP_LAST
+    try:
+        if os.path.exists(_DP_FILE):
+            with open(_DP_FILE, encoding="utf-8") as f:
+                _DP_LAST = _fjson.load(f)
+            print("[v4.9] 已加载差分隐私对比结果（%s）" % (_DP_LAST or {}).get("generated_at"))
+    except Exception as e:
+        print("[v4.9] DP 结果加载失败：%s" % e)
+
+
+_dp_load()
 
 
 # ── 启动 ──
@@ -1442,6 +1679,65 @@ def _retrieve_knowledge(question):
     return knowledge
 
 
+def _chat_context(acc):
+    """v4.9：组装问答上下文——病历档案（既往史 / 覆盖医院）+ 最近诊断结论 + 拍照分析历史。
+
+    这是「模块互联」的落地：问答不再只看知识库，而是带上这个人的档案与近期结论。
+    返回 (context_text, meta)。
+    """
+    meta = {"bound": False, "diagnoses": 0, "photos": 0, "hospitals": 0}
+    lines = []
+    try:
+        p = _v48_patient_of(acc.get("username"))
+    except Exception:
+        p = None
+    if p:
+        pub = _v48_patient_public(p)
+        hist = pub.get("history") or []
+        covered = [h for h in (pub.get("hospitals") or []) if h.get("count")]
+        age = None
+        try:
+            if pub.get("birth_year"):
+                age = int(_ftime.strftime("%Y")) - int(pub["birth_year"])
+        except Exception:
+            age = None
+        meta.update({"bound": True, "hospitals": len(covered)})
+        who = "【患者档案】%s%s%s" % (
+            pub.get("name") or "当前用户",
+            ("，%s" % pub.get("sex")) if pub.get("sex") else "",
+            ("，%d 岁" % age) if age else "")
+        tgs = "、".join(pub.get("tags") or [])
+        lines.append(who + ("（既往标签：%s）" % tgs if tgs else ""))
+        if covered:
+            lines.append("【跨院就诊】" + "；".join(
+                ["%s %d 条（最近 %s）" % (h.get("name"), h.get("count"), h.get("last") or "—") for h in covered]))
+        else:
+            lines.append("【跨院就诊】暂无已记录就诊（档案已建立）")
+        dx = [h for h in hist if str(h.get("title") or "").startswith(("采纳诊断", "修正诊断"))]
+        ph = [h for h in hist if str(h.get("title") or "").startswith("拍照分析")]
+        meta["diagnoses"] = len(dx)
+        meta["photos"] = len(ph)
+        for h in dx[-3:][::-1]:
+            lines.append("【历史诊断结论】%s %s：%s" % (h.get("date") or "", h.get("title") or "",
+                                                        (h.get("detail") or "")[:100]))
+        for h in ph[-2:][::-1]:
+            lines.append("【历史拍照分析】%s %s" % (h.get("date") or "", h.get("title") or ""))
+    else:
+        lines.append("【患者档案】未绑定（如需结合既往病史回答，可先在「病历档案」核验并认领）")
+    # 个人拍照历史（未落档案的那部分也带上，保证上下文完整）
+    try:
+        u_items = [x for x in (_PHOTOHIST.get("items") or []) if x.get("user") == acc.get("username")]
+        if u_items:
+            meta["photos"] = max(meta["photos"], len(u_items))
+            if not any("历史拍照分析" in x for x in lines):
+                for it in u_items[-2:][::-1]:
+                    lines.append("【历史拍照分析】%s %s（%s）" % (it.get("time") or "", it.get("top") or "",
+                                                                 it.get("level") or ""))
+    except Exception:
+        pass
+    return ("\n".join(lines), meta)
+
+
 @app.route("/api/chat", methods=["POST", "OPTIONS"])
 def api_chat():
     if request.method == "OPTIONS":
@@ -1471,6 +1767,9 @@ def api_chat():
     # ① RAG 检索知识库
     knowledge = _retrieve_knowledge(question)
 
+    # ①' v4.9 上下文层：档案 / 既往诊断 / 拍照分析（模块互联）
+    context_text, context_meta = _chat_context(acc)
+
     # ② 组装消息
     system_prompt = (
         "你是『联邦医院知识图谱AI』的医疗助手，回答需遵守：\n"
@@ -1482,6 +1781,9 @@ def api_chat():
         system_prompt += "\n【知识库检索结果】\n" + knowledge
     else:
         system_prompt += "\n【知识库检索结果】未命中，请给出通用健康建议并建议用户就医咨询。"
+    if context_text:
+        system_prompt += ("\n【该用户的院内上下文（已授权，数据不出院）】\n" + context_text +
+                          "\n（以上为结构化事实，可自然引用；不要编造未列出的就诊记录。）")
 
     messages = [{"role": "system", "content": system_prompt}]
     for h in history:
@@ -1506,7 +1808,10 @@ def api_chat():
             answer = result["choices"][0]["message"]["content"]
             if _feishu:
                 _feishu.notify_chat(acc, question, bool(knowledge))
-            return jsonify({"reply": answer, "knowledge_hit": bool(knowledge)})
+            return jsonify({"reply": answer, "knowledge_hit": bool(knowledge),
+                            "context_used": bool((context_meta or {}).get("bound")),
+                            "context": context_meta,
+                            "sources": (["院内知识库"] + (["个人病历档案"] if context_meta.get("bound") else []))})
         else:
             err = result.get("message") or result.get("error", {}).get("message", "未知错误")
             return jsonify({"reply": "AI 服务暂时不可用：" + str(err)}), 502
@@ -1805,11 +2110,21 @@ def _v48_mask_phone(ph):
 
 
 def _v48_patient_public(p):
+    hist = list(p.get("history") or [])
+    hospitals = []
+    for hid, hname, _n in _FL_SPECS:
+        recs = [h for h in hist if (h.get("hospital") or "") == hid]
+        last = ""
+        for h in recs:
+            d = str(h.get("date") or "")
+            if d > last:
+                last = d
+        hospitals.append({"id": hid, "name": hname, "count": len(recs), "last": last})
     return {
         "pid": p.get("pid"), "name": p.get("name"), "sex": p.get("sex"),
         "birth_year": p.get("birth_year"), "phone": _v48_mask_phone(p.get("phone")),
         "tags": p.get("tags") or [], "created": p.get("created"),
-        "history": list(p.get("history") or []),
+        "history": hist, "hospitals": hospitals,
     }
 
 
@@ -2037,10 +2352,13 @@ def api_patient_match():
         return jsonify({"ok": False, "error": "请求体必须为 JSON 对象"}), 400
     name = str(data.get("name") or "").strip()
     phone = str(data.get("phone") or "").strip()
+    want_h = str(data.get("hospital") or "").strip().upper()
     if not name or not phone:
         return jsonify({"ok": False, "error": "请填写姓名与手机号后进行核验"}), 400
     if len(name) > 20 or len(phone) > 20:
         return jsonify({"ok": False, "error": "输入过长"}), 400
+    if want_h and want_h not in _FED_HIDS:
+        return jsonify({"ok": False, "error": "未知医院标识（仅支持 A–F）"}), 400
     hit = None
     name_only = False
     for p in _PATIENTS.get("patients", []):
@@ -2053,7 +2371,14 @@ def api_patient_match():
     if not hit:
         hint = "姓名存在就诊记录，但手机号不匹配——请核对后重试" if name_only else "未找到匹配档案，可建立新档案"
         return jsonify({"ok": True, "matched": False, "hint": hint, "already_bound": bool(cur_pid)})
-    return jsonify({"ok": True, "matched": True, "already_bound": bool(cur_pid), "patient": _v48_patient_public(hit)})
+    pub = _v48_patient_public(hit)
+    resp = {"ok": True, "matched": True, "already_bound": bool(cur_pid), "patient": pub}
+    if want_h:
+        cnt = len([h2 for h2 in (hit.get("history") or []) if (h2.get("hospital") or "") == want_h])
+        resp["scope"] = {"hospital": want_h, "count": cnt}
+        if cnt == 0:
+            resp["hospital_hint"] = "该院暂无就诊记录——可切换其他医院查看，或先建立新档案。"
+    return jsonify(resp)
 
 
 @app.route("/api/patient/bind", methods=["POST", "OPTIONS"])
@@ -2105,6 +2430,7 @@ def api_patient_create():
     p = {"pid": pid, "name": name, "sex": sex, "birth_year": by, "phone": phone,
          "created": _ftime.strftime("%Y-%m-%d"), "tags": [],
          "history": [{"date": _ftime.strftime("%Y-%m-%d"), "dept": "线上服务",
+                      "hospital": acc.get("hospital") or "",
                       "title": "新建档案", "detail": "由用户自助建立的演示档案。"}]}
     _PATIENTS.setdefault("patients", []).append(p)
     _PATIENTS.setdefault("bindings", {})[acc["username"]] = pid
@@ -2122,6 +2448,61 @@ def api_patient_unbind():
     (_PATIENTS.get("bindings") or {}).pop(acc["username"], None)
     _patients_save()
     return jsonify({"ok": True, "bound": False})
+
+
+@app.route("/api/patient/context")
+def api_patient_context():
+    """v4.9：把「病历档案 / 既往诊断 / 拍照分析」汇总为上下文，供诊断与问答模块引用（模块互联）。
+
+    只读接口，仅返回当前账号绑定的档案；未绑定返回 bound=false。
+    """
+    acc = _sess(request)
+    if not acc:
+        return _deny()
+    p = _v48_patient_of(acc["username"])
+    out = {"ok": True, "bound": False, "patient": None,
+           "recent_diagnoses": [], "recent_photos": [],
+           "photo_history_count": 0, "hospitals_covered": 0, "note": ""}
+    # 拍照历史（个人维度）
+    try:
+        u_items = [x for x in (_PHOTOHIST.get("items") or []) if x.get("user") == acc["username"]]
+        out["photo_history_count"] = len(u_items)
+    except Exception:
+        u_items = []
+    if not p:
+        out["note"] = "未绑定病历档案：绑定后可让诊断自动参考既往就诊与历史结论（数据不出院）"
+        return jsonify(out)
+    pub = _v48_patient_public(p)
+    covered = [h for h in (pub.get("hospitals") or []) if h.get("count")]
+    age = None
+    try:
+        if pub.get("birth_year"):
+            age = int(_ftime.strftime("%Y")) - int(pub["birth_year"])
+    except Exception:
+        age = None
+    out["bound"] = True
+    out["patient"] = {
+        "pid": pub.get("pid"), "name": pub.get("name"), "sex": pub.get("sex"),
+        "age": age, "tags": pub.get("tags") or [], "created": pub.get("created"),
+        "hospitals_covered": len(covered),
+        "hospitals": covered,
+        "history_count": len(pub.get("history") or []),
+    }
+    out["hospitals_covered"] = len(covered)
+    hist = pub.get("history") or []
+    dx = [h for h in hist if str(h.get("title") or "").startswith(("采纳诊断", "修正诊断"))]
+    ph = [h for h in hist if str(h.get("title") or "").startswith("拍照分析")]
+    out["recent_diagnoses"] = [{"date": h.get("date"), "title": h.get("title"),
+                                "detail": (h.get("detail") or "")[:120],
+                                "hospital": h.get("hospital")} for h in dx[-5:]][::-1]
+    out["recent_photos"] = [{"date": h.get("date"), "title": h.get("title"),
+                             "hospital": h.get("hospital")} for h in ph[-5:]][::-1]
+    if u_items:
+        out["recent_photos_personal"] = [{"time": it.get("time"), "top": it.get("top"),
+                                          "level": it.get("level")} for it in u_items[-3:]][::-1]
+    out["note"] = ("诊断与问答已自动引用该档案：既往 %d 条记录 · 覆盖 %d 家医院 · 历史结论 %d 条"
+                   % (len(hist), len(covered), len(dx)))
+    return jsonify(out)
 
 
 @app.route("/api/patient/me")
@@ -2282,6 +2663,7 @@ def api_photo_analyze():
     if pat is not None and saved is not None:
         try:
             _patient_add_record(user, {"date": _ftime.strftime("%Y-%m-%d"), "dept": "线上服务",
+                                       "hospital": acc.get("hospital") or "",
                                        "title": "拍照分析 · " + str(top_label),
                                        "detail": "分析处置建议：%s；结果与图片已存档，可用于后续对比。" % rules["level"]})
         except Exception as _pe:
@@ -2337,7 +2719,7 @@ _photohist_load()
 
 if __name__ == "__main__":
     print("=" * 50)
-    print("  联邦医院知识图谱AI — 后端已启动（v4.8 病历档案版）")
+    print("  联邦医院知识图谱AI — 后端已启动（v4.9 可解释 + 差分隐私版）")
     print("  访问: http://localhost:5000")
     print("  API 列表:")
     print("    GET  /api/hospitals       — 医院列表")

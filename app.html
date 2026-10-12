@@ -290,6 +290,16 @@ a{color:var(--blue2)}
 .ph-libcard b{display:block;font-size:.8rem;padding:8px 10px 2px}
 .ph-libcard span{display:block;font-size:.68rem;color:var(--txm);padding:0 10px 9px;line-height:1.5}
 @media(max-width:680px){.ph-cmp{grid-template-columns:1fr}.ph-cmp-mid{display:none}.ph-cmp img{height:150px}}
+.rc-hosp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:8px;margin-top:10px}
+.rc-hosp{background:rgba(8,18,36,.6);border:1px solid rgba(94,162,255,.14);border-radius:10px;padding:9px 11px}
+.rc-hosp b{display:block;font-size:.78rem}
+.rc-hosp span{display:block;font-size:.68rem;color:var(--txm);margin-top:4px;line-height:1.5}
+.rc-hosp.none span{color:#7d92b8}
+.rc-hosp.click{cursor:pointer;transition:all .15s}
+.rc-hosp.click:hover{border-color:rgba(94,162,255,.5)}
+.rc-hosp.on{border-color:var(--blue2);box-shadow:0 0 10px rgba(94,162,255,.35)}
+.rc-scope-hint{margin:8px 0 0;padding:8px 12px;border:1px dashed rgba(255,170,90,.5);border-radius:10px;font-size:.78rem;color:#ffc38a;background:rgba(217,119,6,.1)}
+.rc-scope-hint.ok{border-color:rgba(120,220,160,.45);color:#9fe6c0;background:rgba(14,159,110,.1)}
 
 </style>
 </head>
@@ -457,7 +467,7 @@ function mxOpenDiag(){
     h.push('<div class="mx-scope"><span class="mx-mut">推理模型：</span>' +
       '<button type="button" class="mx-sbtn' + (mxModelSel === 'global' ? ' on' : '') + '" id="mxMGlobal">联邦全局' + (st.trained ? '（v' + st.version + '）' : '') + '</button>' +
       '<button type="button" class="mx-sbtn' + (mxModelSel === 'baseline' ? ' on' : '') + '" id="mxMBase">基础版</button>' +
-      '<span class="mx-mut">' + (st.trained ? ('6 院联合 · ' + st.params + ' 参数 · 损失 ' + st.loss) : '未训练：先到「联邦训练」发起一轮') + '</span></div>');
+      '<span class="mx-mut">' + (st.trained ? ('6 院联合 · ' + st.params + ' 参数 · 损失 ' + st.loss + (st.hyper && st.hyper.epochs != null ? ' · 本地 ' + hgxEsc(st.hyper.epochs) + ' 轮 / 学习率 ' + hgxEsc(st.hyper.lr) : '')) : '未训练：先到「联邦训练」发起一轮') + '</span></div>');
     h.push('<div class="mx-cgrid">');
     for(var i = 0; i < list.length; i++){
       h.push('<button type="button" class="mx-chip" data-s="' + hgxEsc(list[i]) + '">' + hgxEsc(list[i]) + '</button>');
@@ -514,6 +524,48 @@ function mxOpenDiag(){
                   '<span class="mx-cdept">' + hgxEsc(d.dept) + ' · 命中 ' + d.matched + '/' + d.total + ' 症状</span>' +
                   '<span class="mx-cscore">' + d.score + '<i>分</i>' + (d.score_base != null ? '<em class="mx-based">基础版 ' + d.score_base + '</em>' : '') + '</span></div>');
           h2.push('<div class="mx-bar"><i style="width:' + Math.max(2, Math.min(100, d.score)) + '%"></i></div>');
+          h2.push((function(){
+            var fs = d.factors || [];
+            if(!fs.length){ return ''; }
+            var fr = [], fi = 0, ftot = 0;
+            fr.push('<details style="margin:10px 0 2px"><summary style="cursor:pointer;color:var(--cyan2);font-size:.78rem">为什么是这个分</summary><div style="padding:6px 2px 2px">');
+            fr.push('<table class="mx-mini"><tr><th>评分因素</th><th>得分</th><th>说明</th></tr>');
+            for(fi = 0; fi < fs.length && fi < 3; fi++){
+              var fo = fs[fi] || {};
+              if(fo.points != null){ ftot += Number(fo.points) || 0; }
+              var fmax = (fo.weight != null) ? (' / ' + hgxEsc(Math.round(Number(fo.weight) * 100))) : '';
+              fr.push('<tr><td>' + hgxEsc(fo.label || fo.key || '—') + '</td><td>' + hgxEsc(fo.points) + fmax + '</td><td>' + hgxEsc(fo.detail || '—') + '</td></tr>');
+            }
+            fr.push('<tr><td><b>三因素合计</b></td><td><b>' + hgxEsc(Math.round(ftot * 10) / 10) + '</b></td><td>综合得分 ' + hgxEsc(d.score) + ' 分</td></tr>');
+            fr.push('</table>');
+            var cts = d.contributions || [];
+            if(cts.length){
+              var cmax = Number(cts[0] && cts[0].share) || 0, ci = 0;
+              if(!(cmax > 0)){ cmax = 1; }
+              fr.push('<div style="font-size:.7rem;color:var(--cyan2);letter-spacing:.14em;margin:12px 0 4px">命中症状贡献</div>');
+              for(ci = 0; ci < cts.length; ci++){
+                var co = cts[ci] || {};
+                var csh = Number(co.share) || 0;
+                var cw2 = Math.max(2, Math.min(100, Math.round(csh / cmax * 100)));
+                fr.push('<div style="display:flex;align-items:center;gap:8px;font-size:.76rem;margin:6px 0">' +
+                  '<span style="min-width:84px;color:var(--tx)">' + hgxEsc(co.symptom) + '</span>' +
+                  '<span style="flex:1"><span class="mx-bar" style="display:block;margin:0"><i style="width:' + cw2 + '%"></i></span></span>' +
+                  '<span class="mx-mut" style="flex:none;min-width:118px;text-align:right">权重 ' + hgxEsc(co.weight) + ' · 占比 ' + hgxEsc(Math.round(csh * 1000) / 10) + '%</span></div>');
+              }
+            }
+            var dfs = d.differential || [];
+            if(dfs.length){
+              var dt = [], di = 0;
+              for(di = 0; di < dfs.length; di++){
+                var dfo = dfs[di] || {};
+                dt.push(hgxEsc(dfo.name) + '（共享 ' + hgxEsc(dfo.shared) + ' 个症状：' + ((dfo.common && dfo.common.length) ? hgxEsc(dfo.common.join('、')) : '—') + '）');
+              }
+              fr.push('<div class="mx-mut" style="flex:none;font-size:.74rem;margin-top:10px;line-height:1.8">易混淆：' + dt.join('；') + '</div>');
+            }
+            fr.push('<div class="mx-mut" style="flex:none;font-size:.72rem;margin-top:8px">依据来自联邦全局模型的三因素加权：症状匹配 60% · 本院发病率 20% · 严重度 20%。</div>');
+            fr.push('</div></details>');
+            return fr.join('');
+          })());
           h2.push('<div class="mx-meta">');
           h2.push('<section><h5>推荐检查</h5><p>' + hgxEsc((d.tests || []).join('、') || '—') + '</p></section>');
           h2.push('<section><h5>常用药物</h5><p>' + hgxEsc((d.drugs || []).join('、') || '—') + '</p></section>');
@@ -717,7 +769,7 @@ function mxOpenFL(){
     var h = [];
     h.push('<p class="mx-note">六家医院各自在本地训练（数据一步不出院），只上传模型参数；服务器按样本量加权聚合出<b>全局诊断模型</b>，训练完成后自动下发到「AI 辅助诊断」模块。</p>');
     h.push('<div class="mx-flstat">' + (st && st.trained
-      ? ('<span>全局模型 <b>v' + st.version + '</b> · 训练于 ' + hgxEsc(st.trained_at || '—') + ' · <b>' + st.params + '</b> 个参数 · 六院联合样本 <b>' + st.total_samples + '</b> · 损失 <b>' + st.loss + '</b> · 准确率 <b>' + st.acc + '%</b>' + (st.holdout_acc != null ? ' · 留出集 <b>' + st.holdout_acc + '%</b>' : '') + (st.feedback_total ? ' · 反馈样本 <b>' + st.feedback_total + '</b> 条' : '') + '</span>')
+      ? ('<span>全局模型 <b>v' + st.version + '</b> · 训练于 ' + hgxEsc(st.trained_at || '—') + ' · <b>' + st.params + '</b> 个参数 · 六院联合样本 <b>' + st.total_samples + '</b> · 损失 <b>' + st.loss + '</b>' + (st.hyper && st.hyper.epochs != null ? ' · 本地 ' + hgxEsc(st.hyper.epochs) + ' 轮 / 学习率 ' + hgxEsc(st.hyper.lr) : '') + ' · 准确率 <b>' + st.acc + '%</b>' + (st.holdout_acc != null ? ' · 留出集 <b>' + st.holdout_acc + '%</b>' : '') + (st.feedback_total ? ' · 反馈样本 <b>' + st.feedback_total + '</b> 条' : '') + '</span>')
       : '<span>尚未训练：点击「再训一轮」发起首轮联邦训练</span>') + '</div>');
     var bests = fl.best_solo || null;
     h.push('<div class="mx-flcards">');
@@ -735,7 +787,8 @@ function mxOpenFL(){
            '<button class="btn primary sm" id="mxFlRetrain" type="button">再训一轮</button>' +
            '<button class="btn ghost dark sm" id="mxFlPlay" type="button">播放训练</button>' +
            '<button class="btn ghost dark sm" id="mxFlEval" type="button">评估详情</button>' +
-           '<button class="btn ghost dark sm" id="mxFlExport" type="button">导出训练日志</button></div>');
+           '<button class="btn ghost dark sm" id="mxFlExport" type="button">导出训练日志</button>' +
+           '<button class="btn ghost dark sm" id="mxFlDp" type="button">差分隐私对比</button></div>');
     viewHost.innerHTML = h.join('');
     var cv = QS('#mxFlCv'), tip = QS('#mxFlTip'), playBtn = QS('#mxFlPlay'), retrainBtn = QS('#mxFlRetrain');
     var dpr = Math.min(2, window.devicePixelRatio || 1);
@@ -813,6 +866,53 @@ function mxOpenFL(){
         tip.textContent = '训练请求失败，请重试';
       });
     });
+    var dpBtn = QS('#mxFlDp');
+    if(dpBtn){ dpBtn.addEventListener('click', function(){
+      var oldDp = QS('#mxFlDpBox');
+      if(oldDp){ oldDp.parentNode.removeChild(oldDp); return; }
+      var dbx = document.createElement('div');
+      dbx.id = 'mxFlDpBox'; dbx.className = 'mx-card';
+      dbx.innerHTML = '<div class="mx-load"><span class="mx-spin"></span> 正在跑 5 档噪声对比（约 8–15 秒）…</div>';
+      viewHost.appendChild(dbx);
+      dpBtn.disabled = true; dpBtn.textContent = '对比中…';
+      hgxGet('/api/fl/dp?rounds=8').then(function(dp){
+        dpBtn.disabled = false; dpBtn.textContent = '差分隐私对比';
+        var cur = (dp && dp.curves) || [];
+        if(!cur.length){ dbx.innerHTML = '<p class="mx-mut">本次未返回对比数据，请稍后重试。</p>'; return; }
+        function e1(v){ return (v == null) ? '—' : Number(v).toFixed(2); }
+        function d1(v){ return Math.round((Number(v) || 0) * 10) / 10; }
+        var b0 = cur[0] || {}, bs = cur[cur.length - 1] || {}, bm = cur.length > 1 ? cur[1] : null;
+        var concl = '无噪声基线 σ=' + hgxEsc(b0.sigma) + '：训练集 ' + hgxEsc(b0.acc) + '%' +
+          (b0.holdout_acc != null ? (' / 留出集 ' + hgxEsc(b0.holdout_acc) + '%') : '');
+                if(bm && bm.acc_drop != null){ concl += '；噪声 σ=' + hgxEsc(bm.sigma) + '（单轮 ε≈' + hgxEsc(e1(bm.epsilon)) + '）时精度仅降 ' + hgxEsc(d1(bm.acc_drop)) + 'pp'; }
+        if(bs && bs.acc_drop != null){ concl += '；σ=' + hgxEsc(bs.sigma) + '（单轮 ε≈' + hgxEsc(e1(bs.epsilon)) + '，' + hgxEsc(dp.rounds) + ' 轮合计 ≈' + hgxEsc(e1(bs.epsilon_total)) + '）时降 ' + hgxEsc(d1(bs.acc_drop)) + 'pp。'; }
+        var rows3 = '', ci3 = 0;
+        for(ci3 = 0; ci3 < cur.length; ci3++){
+                    var cv = cur[ci3] || {};
+          var hasDrop = (cv.acc_drop !== null && cv.acc_drop !== undefined);
+          var dr = hasDrop ? Number(cv.acc_drop) : null;
+          var col = (dr === null) ? 'var(--txm)' : (dr < 2 ? '#9fe6c0' : (dr < 20 ? '#ffd479' : '#ff8f8f'));
+          var dropTxt = hasDrop ? ((dr > 0 ? '-' : '') + hgxEsc(d1(dr)) + 'pp') : '—';
+          rows3 += '<tr><td>' + hgxEsc(cv.sigma) + '</td><td>' + hgxEsc(e1(cv.epsilon)) + '</td><td>' +
+            (cv.epsilon_total == null ? '—' : hgxEsc(e1(cv.epsilon_total))) + '</td><td>' + hgxEsc(cv.acc) + '%</td><td>' +
+            (cv.holdout_acc == null ? '—' : (hgxEsc(cv.holdout_acc) + '%')) + '</td><td style="color:' + col + '">' +
+            dropTxt + '</td></tr>';
+        }
+        dbx.innerHTML = '<div class="mx-ch"><b>差分隐私对比（σ → 隐私预算 ε → 精度损失）</b>' +
+          '<span class="mx-cdept">自适应裁剪 C=' + hgxEsc((b0.clip_threshold != null ? Number(b0.clip_threshold).toFixed(4) : '—')) +
+             ' · 灵敏度 w_max·C=' + hgxEsc((b0.sensitivity != null ? Number(b0.sensitivity).toFixed(4) : '—')) +
+             ' · δ=1e-5 · ' + cur.length + ' 档噪声 · 每档 ' + hgxEsc(dp.rounds) + ' 轮</span></div>' +
+          '<p class="mx-note" style="margin:10px 0">' + concl + '</p>' +
+          '<table class="mx-mini"><tr><th>噪声 σ</th><th>单轮 ε</th><th>' + hgxEsc(dp.rounds) + ' 轮 ε（基本组合）</th><th>训练集准确率</th><th>留出集准确率</th><th>较基线精度变化</th></tr>' + rows3 + '</table>' +
+          '<p class="mx-mut" style="flex:none;font-size:.74rem;margin-top:10px;line-height:1.8">' + (dp.note ? (hgxEsc(dp.note) + ' ') : '') + '隐私越强，精度越低——这就是隐私–精度权衡。</p>' +
+          '<p class="mx-mut" style="flex:none;font-size:.72rem;margin-top:6px">生成时间：' + hgxEsc(dp.generated_at || '—') + ' · 每档噪声独立训练，可直接复现</p>' +
+           '<p class="mx-mut" style="flex:none;font-size:.72rem;margin-top:4px">口径说明：单轮 ε 为高斯机制公式估计；多轮 ε 为基本组合的保守上界——两者都是演示级估计，不是严格 DP 会计（未用 RDP/矩会计）。</p>';
+      }).catch(function(){
+        dpBtn.disabled = false; dpBtn.textContent = '差分隐私对比';
+        var b3 = QS('#mxFlDpBox');
+        if(b3){ b3.innerHTML = '<p class="mx-err">差分隐私对比失败：请确认后端服务可用后重试。</p>'; }
+      });
+    }); }
     var expBtn = QS('#mxFlExport'), evalBtn = QS('#mxFlEval');
     if(expBtn){ expBtn.addEventListener('click', function(){
       expBtn.disabled = true;
@@ -863,6 +963,7 @@ function mxOpenFL(){
 
 /* —— ④ AI 医疗问答（/api/chat · 知识库 RAG） —— */
 var mxChatHist = [];
+var mxChatSeed = null;
 function mxOpenChat(){
   enterView('AI 医疗问答', '基于院内知识库（RAG）· 大模型生成回答');
   var h = [];
@@ -872,6 +973,7 @@ function mxOpenChat(){
   h.push('<div class="mx-hints"><button type="button" class="mx-chip" data-q="急性心梗有哪些症状？">急性心梗有哪些症状？</button><button type="button" class="mx-chip" data-q="糖尿病常用什么药？">糖尿病常用什么药？</button><button type="button" class="mx-chip" data-q="胸痛应该做哪些检查？">胸痛应该做哪些检查？</button></div></div>');
   viewHost.innerHTML = h.join('');
   var log = QS('#mxChLog'), inp = QS('#mxChIn');
+  var seedTop0 = (mxChatSeed && mxChatSeed.top) ? String(mxChatSeed.top) : '本次拍照分析';
   function push(role, text){
     var div = document.createElement('div');
     div.className = 'mx-msg ' + (role === 'user' ? 'u' : 'a');
@@ -882,6 +984,11 @@ function mxOpenChat(){
   function send(text){
     var q2 = String(text || inp.value || '').trim();
     if(!q2){ return; }
+    if(mxChatSeed){
+      mxChatSeed = null;
+      var sbar0 = QS('#mxChatSeedBar');
+      if(sbar0 && sbar0.parentNode){ sbar0.parentNode.removeChild(sbar0); }
+    }
     inp.value = '';
     var histPayload = mxChatHist.slice(-6);
     push('user', q2);
@@ -893,6 +1000,15 @@ function mxOpenChat(){
         var reply = (d && d.reply) || '（无回复）';
         wait.classList.remove('mx-wait');
         wait.textContent = reply;
+        if(d && d.context_used){
+          var srcs2 = (d.sources && d.sources.length) ? d.sources.join('、') : '院内知识库';
+          var cbd = document.createElement('div');
+          cbd.className = 'mx-mut';
+          cbd.style.cssText = 'flex:none;min-width:0;font-size:.72rem;margin-top:-2px';
+          cbd.textContent = '已结合：' + srcs2;
+          log.appendChild(cbd);
+          log.scrollTop = log.scrollHeight;
+        }
         mxChatHist.push({ role: 'user', content: q2 });
         mxChatHist.push({ role: 'assistant', content: reply });
         log.scrollTop = log.scrollHeight;
@@ -901,6 +1017,25 @@ function mxOpenChat(){
         wait.classList.remove('mx-wait');
         wait.textContent = '网络或后端服务异常，请稍后重试。';
       });
+  }
+  if(mxChatSeed){
+    var seedLv = mxChatSeed.level ? String(mxChatSeed.level) : '';
+    var seedFt = (mxChatSeed.features && mxChatSeed.features.length) ? mxChatSeed.features.slice(0, 3).join('、') : '';
+    var seedPfx = '关于这次拍照分析（' + seedTop0 + (seedLv ? ('，' + seedLv) : '') + '），我想进一步了解：';
+    var seedBar = document.createElement('div');
+    seedBar.id = 'mxChatSeedBar'; seedBar.className = 'mx-note';
+    seedBar.style.cssText = 'display:flex;align-items:center;gap:10px;background:rgba(37,99,235,.12);border:1px solid rgba(94,162,255,.3);border-radius:10px;padding:8px 12px;margin-bottom:10px;font-size:.78rem';
+    var seedTxt = document.createElement('span');
+    seedTxt.style.cssText = 'flex:1;min-width:0';
+    seedTxt.textContent = '将结合本次拍照分析提问：' + seedTop0 + (seedLv ? ('（' + seedLv + '）') : '') + (seedFt ? (' · 观察特征：' + seedFt) : '');
+    var seedX = document.createElement('button');
+    seedX.type = 'button'; seedX.className = 'mx-chip'; seedX.textContent = '取消带入';
+    seedX.addEventListener('click', function(){ mxChatSeed = null; inp.value = ''; if(seedBar.parentNode){ seedBar.parentNode.removeChild(seedBar); } });
+    seedBar.appendChild(seedTxt); seedBar.appendChild(seedX);
+    var rowEl = inp.parentNode;
+    if(rowEl && rowEl.parentNode){ rowEl.parentNode.insertBefore(seedBar, rowEl); }
+    inp.value = seedPfx;
+    setTimeout(function(){ try{ inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); }catch(e){} }, 320);
   }
   QS('#mxChSend').addEventListener('click', function(){ send(); });
   inp.addEventListener('keydown', function(e){ if(e.key === 'Enter'){ send(); } });
@@ -1161,6 +1296,7 @@ function mxOpenPhoto(){
     if(d.saved){
       h.push('<p class="ph-saved">✓ 本次结果已存入拍照历史' + (d.saved.linked_patient ? '，并关联健康档案' : '') + ' · <button class="mx-chip" id="mxPhToRec" type="button">去病历档案查看</button></p>');
     }
+    h.push('<div class="mx-acts"><button class="btn ghost dark sm" id="mxPhToChat" type="button">带着这次分析去问 AI</button></div>');
     res.innerHTML = h.join('');
     paintCmp();
     var stepEls = res.querySelectorAll('.ph-step');
@@ -1169,6 +1305,20 @@ function mxOpenPhoto(){
     });
     var tr = QS('#mxPhToRec');
     if(tr){ tr.addEventListener('click', function(){ openView('record'); }); }
+    var p2c = QS('#mxPhToChat');
+    if(p2c){ p2c.addEventListener('click', function(){
+      var a0 = d.analysis || {}, mp0 = d.mapping || {};
+      var mm = (d.matched && d.matched.length ? d.matched[0] : null) ||
+               (d.cases && d.cases.matched && d.cases.matched.length ? d.cases.matched[0] : null) || null;
+      var ft0 = a0.features || d.features || [];
+      if(!Array.isArray(ft0)){ ft0 = []; }
+      mxChatSeed = {
+        top: (mm && mm.name) ? mm.name : ((typeof mm === 'string' && mm) ? mm : (a0.condition || mp0.condition || '本次拍照分析')),
+        level: d.level || '',
+        features: ft0
+      };
+      openView('chat');
+    }); }
   }
 
   function runPhoto(){
@@ -1246,6 +1396,22 @@ function mxOpenRecord(){
   paintRecord();
 }
 
+var RC_HOSP = { A: '中心医院', B: '市第一人民医院', C: '附属第三医院', D: '省第二人民医院', E: '妇幼保健院', F: '开发区医院' };
+var rcFilter = '';
+var rcBoundData = null;
+function rcHospName(c){ return RC_HOSP[c] || ''; }
+function rcHospBlock(hs, clickable){
+  if(!hs || !hs.length){ return ''; }
+  var h = ['<div class="rc-hosp-grid">'];
+  for(var i = 0; i < hs.length; i++){
+    var x = hs[i];
+    var cls = 'rc-hosp' + (x.count > 0 ? '' : ' none') + (clickable ? ' click' : '') + (clickable && rcFilter === x.id ? ' on' : '');
+    h.push('<div class="' + cls + '" data-h="' + hgxEsc(x.id) + '"><b>' + hgxEsc(x.name) + '</b><span>' + (x.count > 0 ? (x.count + ' 条' + (x.last ? ' · 最近 ' + hgxEsc(x.last) : '')) : '暂无') + '</span></div>');
+  }
+  h.push('</div>');
+  return h.join('');
+}
+
 function paintRecord(){
   viewHost.innerHTML = '<div class="mx-load"><span class="mx-spin"></span> 正在读取档案状态…</div>';
   hgxGet('/api/patient/me').then(function(d){
@@ -1261,10 +1427,11 @@ function paintRecord(){
 function paintRecordForm(d){
   var h = [];
   h.push('<div class="mx-card rc-intro"><h3>身份核验 · 查询既往记录</h3>');
-  h.push('<p class="mx-note">填写本人信息，系统将在院内档案中核验身份：若存在既往记录，可认领并关联到当前账号；未找到时可现场建立新档案。</p>');
+  h.push('<p class="mx-note">填写本人信息，系统将在院内档案中核验身份：若存在既往记录，可认领并关联到当前账号；未找到时可现场建立新档案。选择『曾就诊医院』可优先查看该院记录，未就诊医院将显示『暂无』。</p>');
   h.push('<div class="rc-grid">');
   h.push('<label class="fld">姓名<input id="rcName" placeholder="如：王芳"></label>');
   h.push('<label class="fld">手机号<input id="rcPhone" placeholder="如：13900001234"></label>');
+  h.push('<label class="fld">曾就诊医院（可选）<select id="rcHosp"><option value="">不指定（查看全部）</option><option value="A">中心医院</option><option value="B">市第一人民医院</option><option value="C">附属第三医院</option><option value="D">省第二人民医院</option><option value="E">妇幼保健院</option><option value="F">开发区医院</option></select></label>');
   h.push('</div>');
   h.push('<div class="mx-acts"><button class="btn primary sm" id="rcGo" type="button">核验身份</button><span class="mx-mut">演示档案（点击快速填入）：</span></div>');
   h.push('<div class="mx-hints" id="rcChips">');
@@ -1285,7 +1452,7 @@ function paintRecordForm(d){
   h.push('<div class="mx-acts"><button class="btn primary sm" id="ncGo" type="button">建立并绑定</button></div>');
   h.push('<div id="ncMsg"></div></details>');
   h.push('<p class="mx-mut" style="font-size:.74rem">说明：演示环境，档案为平台合成数据（非真实患者信息）；核验与关联仅用于功能演示。</p>');
-  h.push('<div class="mx-card"><div class="mx-ch"><b>档案能做什么？</b></div><p class="mx-note">· AI 诊断：采纳 / 修正诊断结果后，将自动写入你的档案；诊断结果页会显示既往史提示。<br>· 拍照分析：分析结果与图片自动关联档案，支持“与上次记录对比”。<br>· 后续可扩展：按既往史加权推理、复诊提醒等。</p></div>');
+  h.push('<div class="mx-card"><div class="mx-ch"><b>档案能做什么？</b></div><p class="mx-note">· AI 诊断：采纳 / 修正诊断结果后，将自动写入你的档案；诊断结果页会显示既往史提示。<br>· 拍照分析：分析结果与图片自动关联档案，支持“与上次记录对比”。<br>· 跨院就诊：汇总六家医院的就诊记录（演示），核验时可指定医院；未就诊医院显示『暂无』。<br>· 后续可扩展：按既往史加权推理、复诊提醒等。</p></div>');
   viewHost.innerHTML = h.join('');
   QSA('#rcChips .mx-chip').forEach(function(c){
     c.addEventListener('click', function(){
@@ -1301,10 +1468,11 @@ function paintRecordForm(d){
 function rcMatch(){
   var n = (QS('#rcName').value || '').trim();
   var p = (QS('#rcPhone').value || '').trim();
+  var hosp = (QS('#rcHosp') && QS('#rcHosp').value) || '';
   var msg = QS('#rcMsg');
   if(!n || !p){ msg.innerHTML = '<p class="mx-err">请填写姓名与手机号</p>'; return; }
   msg.innerHTML = '<div class="mx-load"><span class="mx-spin"></span> 核验中…</div>';
-  hgxPost('/api/patient/match', { name: n, phone: p }).then(function(r){
+  hgxPost('/api/patient/match', { name: n, phone: p, hospital: hosp }).then(function(r){
     var d = r.data;
     if(!r.ok || !d || !d.ok){ msg.innerHTML = '<p class="mx-err">核验失败：' + hgxEsc((d && d.error) || ('HTTP ' + r.status)) + '</p>'; return; }
     if(!d.matched){
@@ -1313,7 +1481,7 @@ function rcMatch(){
       if(nb){ nb.open = true; QS('#ncName').value = n; QS('#ncPhone').value = p; }
       return;
     }
-    paintRecordPreview(d.patient, d.already_bound);
+    paintRecordPreview(d.patient, d.already_bound, d.hospital_hint, d.scope);
   }).catch(function(){ msg.innerHTML = '<p class="mx-err">网络异常，请稍后重试</p>'; });
 }
 
@@ -1334,12 +1502,15 @@ function rcCreate(){
   }).catch(function(){ msg.innerHTML = '<p class="mx-err">网络异常，请稍后重试</p>'; });
 }
 
-function paintRecordPreview(pat, alreadyBound){
+function paintRecordPreview(pat, alreadyBound, hospHint, scope){
   var h = [];
   h.push('<div class="mx-card rc-intro"><h3>核验成功 · 找到既往档案</h3>');
   h.push('<p class="mx-note">系统在你的名下查询到以下档案。确认认领后，档案将关联到当前账号（' + hgxEsc(HGX.name || '') + '）' + (alreadyBound ? '；当前账号已绑定其他档案，确认后将切换' : '') + '。</p>');
+  if(hospHint){ h.push('<div class="rc-scope-hint">' + hgxEsc(hospHint) + '</div>'); }
+  if(scope && scope.count > 0){ h.push('<div class="rc-scope-hint ok">所选医院（' + hgxEsc(rcHospName(scope.hospital)) + '）有 ' + scope.count + ' 条就诊记录，见下方分布。</div>'); }
   h.push(rcPatCard(pat));
-  h.push(rcTimeline(pat.history || []));
+  h.push('<div class="mx-card"><div class="mx-ch"><b>就诊医院分布</b><span class="mx-cdept">六院汇总 · 演示数据</span></div>' + rcHospBlock(pat.hospitals, false) + '<p class="mx-mut" style="font-size:.72rem;margin-top:8px">未就诊的医院显示『暂无』；认领后可在档案页按医院筛选记录。</p></div>');
+  h.push(rcTimeline(pat.history || [], ''));
   h.push('<div class="mx-acts"><button class="btn primary sm" id="rcBindGo" type="button">认领并绑定此档案</button><button class="btn ghost dark sm" id="rcCancel" type="button">返回重填</button></div>');
   h.push('<div id="rcMsg2"></div></div>');
   viewHost.innerHTML = h.join('');
@@ -1371,37 +1542,46 @@ function rcPatCard(pat){
   return h.join('');
 }
 
-function rcTimeline(hist){
+function rcTimeline(hist, filter){
   var list = (hist || []).slice();
+  if(filter){ list = list.filter(function(x){ return (x.hospital || '') === filter; }); }
   list.sort(function(a, b){ return String(b.date || '').localeCompare(String(a.date || '')); });
-  var h = ['<div class="mx-card"><div class="mx-ch"><b>既往记录</b><span class="mx-cdept">共 ' + list.length + ' 条 · 新的在前</span></div><div class="rc-tl">'];
+  var h = ['<div class="mx-card"><div class="mx-ch"><b>既往记录</b><span class="mx-cdept">共 ' + list.length + ' 条' + (filter ? (' · ' + hgxEsc(rcHospName(filter))) : ' · 新的在前') + '</span></div><div class="rc-tl">'];
   for(var i = 0; i < list.length; i++){
     var it = list[i];
-    h.push('<div class="rc-tl-item"><span class="rc-tl-dot"></span><div class="rc-tl-date">' + hgxEsc(it.date || '') + ' · ' + hgxEsc(it.dept || '') + '</div><div class="rc-tl-title">' + hgxEsc(it.title || '') + '</div><div class="rc-tl-detail">' + hgxEsc(it.detail || '') + '</div></div>');
+    var meta = [it.date || '', rcHospName(it.hospital), it.dept || ''];
+    meta = meta.filter(function(x){ return !!x; });
+    h.push('<div class="rc-tl-item"><span class="rc-tl-dot"></span><div class="rc-tl-date">' + hgxEsc(meta.join(' · ')) + '</div><div class="rc-tl-title">' + hgxEsc(it.title || '') + '</div><div class="rc-tl-detail">' + hgxEsc(it.detail || '') + '</div></div>');
   }
-  if(!list.length){ h.push('<p class="mx-mut">暂无记录</p>'); }
+  if(!list.length){ h.push('<p class="mx-mut">该筛选下暂无记录</p>'); }
   h.push('</div></div>');
   return h.join('');
 }
 
 function paintRecordBound(d){
+  rcBoundData = d; rcFilter = '';
   var pat = d.patient || {};
   var photos = d.photos || [];
   var hist = pat.history || [];
   var lastVisit = '';
   for(var i = 0; i < hist.length; i++){ if(!lastVisit || String(hist[i].date || '') > lastVisit){ lastVisit = String(hist[i].date || ''); } }
+  var covered = 0;
+  var hsp = pat.hospitals || [];
+  for(var hi = 0; hi < hsp.length; hi++){ if(hsp[hi].count > 0){ covered++; } }
   var h = [];
   h.push('<div class="mx-card"><div class="mx-ch"><b>我的健康档案</b><span class="mx-badge mx-model">已关联功能</span><span class="mx-cdept">演示数据</span></div>');
   h.push(rcPatCard(pat).replace('<div class="mx-card">', '<div style="margin-top:8px">').replace(/<\/div>$/, '</div>'));
   h.push('<div class="rc-stats">');
   h.push('<div class="rc-stat"><b>' + hist.length + '</b><span>既往记录</span></div>');
+  h.push('<div class="rc-stat"><b>' + covered + '</b><span>覆盖医院</span></div>');
   h.push('<div class="rc-stat"><b>' + (d.photo_count != null ? d.photo_count : photos.length) + '</b><span>拍照分析记录</span></div>');
   h.push('<div class="rc-stat"><b>' + hgxEsc(lastVisit || '—') + '</b><span>最近就诊</span></div>');
   h.push('</div>');
   h.push('<div class="mx-acts"><button class="btn ghost dark sm" id="rcUnbind" type="button">更换绑定（解除）</button><button class="btn ghost dark sm" id="rcGoPhoto" type="button">去拍照分析</button><button class="btn ghost dark sm" id="rcGoDiag" type="button">去 AI 诊断</button></div>');
   h.push('<p class="mx-mut" style="font-size:.72rem">· AI 诊断：采纳 / 修正诊断后自动写入本档案（诊断页会显示既往史提示）<br>· 拍照分析：结果与图片自动关联，支持与上次记录对比</p>');
   h.push('</div>');
-  h.push(rcTimeline(hist));
+  h.push('<div class="mx-card"><div class="mx-ch"><b>就诊医院分布</b><span class="mx-cdept">点击医院可筛选下方记录</span></div>' + rcHospBlock(pat.hospitals, true) + '<p class="mx-mut" style="font-size:.72rem;margin-top:8px">未就诊的医院显示『暂无』；六院记录已统一汇总（演示合成数据）。</p></div>');
+  h.push('<div id="rcTLBox">' + rcTimeline(hist, '') + '</div>');
   if(photos.length){
     var tk = hgxTok();
     h.push('<div class="mx-card"><div class="mx-ch"><b>拍照分析记录</b><span class="mx-cdept">最近 ' + photos.length + ' 条 · 仅本人可见</span></div><div class="rc-photos">');
@@ -1411,6 +1591,15 @@ function paintRecordBound(d){
     h.push('</div></div>');
   }
   viewHost.innerHTML = h.join('');
+  QSA('.rc-hosp.click').forEach(function(el){
+    el.addEventListener('click', function(){
+      var hv = el.getAttribute('data-h');
+      rcFilter = (rcFilter === hv) ? '' : hv;
+      var box = QS('#rcTLBox');
+      if(box && rcBoundData){ box.innerHTML = rcTimeline(rcBoundData.patient.history || [], rcFilter); }
+      QSA('.rc-hosp.click').forEach(function(e2){ e2.classList.toggle('on', e2.getAttribute('data-h') === rcFilter); });
+    });
+  });
   var arm = false, ub = QS('#rcUnbind');
   ub.addEventListener('click', function(){
     if(!arm){
@@ -1488,7 +1677,7 @@ function renderHome(){
   h.push('<p>' + hgxEsc(roleTxt) + ' · 数据不出院，智慧可共享。<br>从左侧选择功能，或点击下方卡片进入。</p>');
   h.push('<div class="home-chips" id="homeChips"></div></div>');
   h.push('<div class="home-grid">');
-  h.push(homeCard('record', '病历档案', '身份核验 → 查询既往病例史；AI 诊断与拍照分析结果自动关联档案。'));
+  h.push(homeCard('record', '病历档案', '身份核验 → 跨六院查询既往病例史；AI 诊断与拍照分析结果自动关联档案。'));
   h.push(homeCard('diag', 'AI 辅助诊断', '点选症状 → 鉴别诊断排名 → 推荐检查 / 用药 / 病因 / 预防。'));
   h.push(homeCard('graph', '知识图谱', '24 类疾病 × 症状 / 药物 / 检查 可视化网络：本院视图与联邦聚合视图。'));
   h.push(homeCard('fl', '联邦训练演示', '六院协同训练实时演示：参数如何流动，误差如何走低——数据不出院。'));

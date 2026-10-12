@@ -12,7 +12,7 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
 <meta name="apple-mobile-web-app-title" content="医院图谱AI">
 <title>联邦医院知识图谱 AI · 多院协同智能平台</title>
-<!-- HospitalGraph 前端设计 v1 · 叙事 + 登录 + 工作台 · 2026-09-29 -->
+<!-- HospitalGraph 前端设计 v1 · 叙事 + 登录 + 工作台 · 2026-10-12 · v4.9 -->
 <style>
 :root{
   --ink:#0a1628; --ink2:#0c1c34; --ink3:#0e2244;
@@ -426,6 +426,7 @@ body.mx-open{overflow:hidden}
       <div class="hero-btns rv">
         <a class="btn primary" href="#federation">了解联邦机制</a>
         <a class="btn ghost" href="#login">账户登录</a>
+      <p class="hero-sub rv" style="margin-top:20px;font-size:.78rem">本系统为教学演示原型，使用合成的模拟医疗数据（非真实患者数据），不构成医疗建议或临床诊断依据；如需就医请咨询执业医师。</p>
       </div>
     </div>
   </div>
@@ -477,7 +478,7 @@ body.mx-open{overflow:hidden}
         <div class="fed-visual">
           <div class="fed-stage">
             <canvas id="fedCanvas"></canvas>
-            <div class="fed-loss" id="fedLoss">示意误差 0.89</div>
+            <div class="fed-loss" id="fedLoss">示意误差 0.89（真实曲线见工作台）</div>
             <div class="fed-caption" id="fedCaption">① 初始化 —— 中心服务器把初始模型下发给六家医院</div>
           </div>
           <div class="fed-chart">
@@ -506,7 +507,7 @@ body.mx-open{overflow:hidden}
     <p class="sec-sub rv">用一套完整的示范数据（自模拟），把「本地训练 → 上传参数 → 中心聚合」的每一步算给你看：点「播放」，看数字和曲线如何一轮轮变化。</p>
 
     <div class="calc-formulas">
-      <div class="cf-card rv"><div class="cf-t">① 本地训练（各家医院）</div><div class="cf-f">wᵢ ← wᵢ − η · ∇Lᵢ(wᵢ)</div><p>各院用本院数据计算梯度、更新自己的参数；η 为学习率（本演示为示意步长 η = 0.025；真实训练参数见工作台「联邦训练」）。</p></div>
+      <div class="cf-card rv"><div class="cf-t">① 本地训练（各家医院）</div><div class="cf-f">wᵢ ← wᵢ − η · ∇Lᵢ(wᵢ)</div><p>各院用本院数据计算梯度、更新自己的参数；η 为学习率（本演示为示意步长 η = 0.025；后端真实训练超参：本地 10 轮、η = 1.6，见工作台「联邦训练」）。</p></div>
       <div class="cf-card rv"><div class="cf-t">② 上传（数据不出院）</div><div class="cf-f">上传：wᵢ、样本数 nᵢ</div><p>只有参数和样本数离开医院；病例数据一步也不出院子。</p></div>
       <div class="cf-card rv"><div class="cf-t">③ 中心聚合（FedAvg）</div><div class="cf-f">w = Σᵢ (nᵢ / N) · wᵢ</div><p>按样本量加权平均：样本越多的医院，话语权越大（N 为样本总数）。</p></div>
     </div>
@@ -527,7 +528,7 @@ body.mx-open{overflow:hidden}
         <canvas id="calcChartW"></canvas>
       </div>
       <div class="cd-chart-box">
-        <div class="cd-chart-title">误差曲线（放大版）：全局误差 e 随轮次下降（0.89 → 0.42）</div>
+        <div class="cd-chart-title">误差曲线（放大版）：全局误差 e 随轮次下降（示意：0.89 → 0.42；真实 3.1781 → 0.5275）</div>
         <canvas id="calcChartE"></canvas>
       </div>
       <div class="cd-grid">
@@ -553,14 +554,14 @@ body.mx-open{overflow:hidden}
   <div class="wrap">
     <div class="eyebrow rv">04 · 数据测验</div>
     <h2 class="sec-title rv">平台自模拟数据 · 规模测验</h2>
-    <p class="sec-sub rv">系统内置一套平台自模拟生成的数据集：六家医院 · 24 类疾病 · 症状 / 药物 / 检查全链路，用于功能测验与协同训练演示（非真实临床数据）。</p>
+    <p class="sec-sub rv">系统内置一套平台自模拟生成的数据集：6 家医院 · 24 病种 · 61 症状 · 106 症状关联 · 53 药物 · 37 检查 · 106 预防 · 144 发病率，用于功能测验与协同训练演示（非真实临床数据）。</p>
     <div class="metrics">
       <div class="metric rv"><b data-count="6">0</b><span>家协作医院</span></div>
       <div class="metric rv"><b data-count="24">0</b><span>疾病类别</span></div>
       <div class="metric rv"><b data-count="61">0</b><span>症状</span></div>
       <div class="metric rv"><b data-count="53">0</b><span>药物</span></div>
       <div class="metric rv"><b data-count="37">0</b><span>检查项</span></div>
-      <div class="metric rv"><b data-count="190">0</b><span>知识节点</span></div>
+      <div class="metric rv"><b data-count="106">0</b><span>症状关联</span></div>
     </div>
     <p class="data-note rv">* 数据由平台自模拟生成，仅用于功能测验与效果演示；联邦训练为 15 轮算法演示（误差曲线见「联邦机制」段）。</p>
   </div>
@@ -632,14 +633,14 @@ body.mx-open{overflow:hidden}
     <div class="wb-status" id="wbBar">
       <span class="st-dot"></span>
       <span id="wbBarName">当前未登录 · 登录后进入应用台</span>
-      <span class="mut">已接入后端 · v4.8</span>
+      <span class="mut">已接入后端 · 2026-10-12 · v4.9</span>
     </div>
     <div class="wb-grid locked" id="wbGrid">
 
       <div class="wcard">
         <svg class="wic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M10 13h4M12 11v4"/></svg>
         <h3>病历档案</h3>
-        <p class="desc">身份核验 → 查询既往病例史；AI 诊断与拍照分析结果自动关联个人档案（演示合成数据）。</p>
+        <p class="desc">身份核验 → 跨六院查询既往病例史；AI 诊断与拍照分析结果自动关联个人档案（演示合成数据）。</p>
         <div class="wrow"><span class="wstat live">已接入 · 病史关联</span><button class="btn primary sm" data-module="record">进入</button></div>
       </div>
 
@@ -720,7 +721,7 @@ body.mx-open{overflow:hidden}
           <tr><td>现状</td><td>六院数据孤岛 · 三张问题卡</td><td>滚动显现、悬浮抬升</td></tr>
           <tr><td>联邦机制</td><td>五步滚动叙事 + 协同过程演示 + 误差折线图</td><td>滚动驱动（sticky）、步骤高亮、参数流动、曲线绘制</td></tr>
           <tr><td>计算过程</td><td>公式卡 + 计算演示台（参数/误差大图、明细表、计算流水）</td><td>按钮步进 / 自动播放 / 曲线逐轮绘制</td></tr>
-          <tr><td>数据测验</td><td>平台自模拟数据规模（6 / 9 / 32 / 27 / 24 / 99）</td><td>数字滚动增长</td></tr>
+          <tr><td>数据测验</td><td>平台自模拟数据规模（6 院 / 24 病种 / 61 症状 / 106 关联 / 53 药物 / 37 检查 / 106 预防 / 144 发病率）</td><td>数字滚动增长</td></tr>
           <tr><td>登录</td><td>按医院区分的账户体系</td><td>校验 / 错误 / 成功三状态</td></tr>
           <tr><td>工作台</td><td>六大模块（联邦演示可交互）</td><td>登录后解锁</td></tr>
         </table>
@@ -1010,7 +1011,7 @@ if(fsParam !== null && fed.track){
     });
     ctx.fillStyle = 'rgba(140,165,205,.6)'; ctx.textAlign = 'center';
     [0, 5, 10, 15].forEach(function(r){ ctx.fillText('' + r, xPx(r, padL, plotW), H - 5 * dpr); });
-    ctx.textAlign = 'left'; ctx.fillText('误差', 6 * dpr, padT + 2 * dpr);
+    ctx.textAlign = 'left'; ctx.fillText('示意误差', 6 * dpr, padT + 2 * dpr);
     ctx.textAlign = 'right'; ctx.fillText('轮次', padL + plotW, padT + 2 * dpr);
     var rounds = Math.max(1, Math.min(N, Math.round(p * 15)));
     var k, r, x, y;
@@ -2105,7 +2106,7 @@ QSA('[data-toast]').forEach(function(b){
       if(seq > 7){
         clearInterval(timer); running = false; hl = -1; draw(); round++;
         var loss = gv(round).toFixed(3);
-        st.textContent = round >= 15 ? ('15 轮完成 · 误差 ' + loss + (FL_REAL ? '（真实算法）' : '（演示收敛）')) : ('第 ' + round + ' 轮完成 · 误差 ' + loss);
+        st.textContent = round >= 15 ? ('15 轮完成 · 误差 ' + loss + (FL_REAL ? '（真实算法）' : '（演示收敛 · 示意值）')) : ('第 ' + round + ' 轮完成 · 误差 ' + loss);
         if(round >= 15) toast(FL_REAL ? '联邦训练完成：15 轮收敛，结果来自后端真实推理（合成数据）' : '联邦训练演示：15 轮完成，模型已收敛（演示）');
       }
     }, 240);
@@ -2121,7 +2122,7 @@ QSA('[data-toast]').forEach(function(b){
     startAnim();
   });
   var fl0 = parseInt(q.get('flauto') || '0', 10) || 0;
-  if(fl0 > 0){ round = Math.min(15, fl0); draw(); st.textContent = '第 ' + round + ' 轮完成 · 误差 ' + (0.89 * Math.pow(0.9506, round)).toFixed(3); }
+  if(fl0 > 0){ round = Math.min(15, fl0); draw(); st.textContent = '第 ' + round + ' 轮完成 · 示意误差 ' + (0.89 * Math.pow(0.9506, round)).toFixed(3); }
   size(); addEventListener('resize', size);
 })();
 
