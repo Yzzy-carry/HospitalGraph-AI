@@ -1637,6 +1637,19 @@ import requests as _requests
 BAILIAN_API_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
 BAILIAN_API_KEY = os.environ.get("BAILIAN_KEY", "")
 BAILIAN_MODEL = "qwen-plus"
+# ── 视觉识别模型（v4.9.1 修复）──
+# 背景：阿里云已下线模型名 "qwen-vl-plus"（调用返回 404 Model not exist），
+#       导致拍照分析长期走「本地降级」路径、无法描述伤口概况。
+# 方案：主用模型可通过环境变量覆盖；同时维护候选列表，逐个尝试并记住首个可用者，
+#       避免某个名字再次下线时整个功能失效。
+BAILIAN_VL_MODEL = os.environ.get("BAILIAN_VL_MODEL", "qwen3-vl-plus")
+_VL_MODEL_CANDIDATES = [
+    BAILIAN_VL_MODEL,
+    "qwen-vl-ocr",
+    "qwen-vl-max-latest",
+    "qwen-vl-plus",
+]
+_VL_MODEL_OK = None   # 首次成功后记住可用模型名，后续直接使用
 
 # 全部症状词表（用于从用户问题里匹配疾病知识）
 _ALL_SYMPTOMS = []
@@ -2558,6 +2571,7 @@ def api_photo_image(iid):
 
 @app.route("/api/photo/analyze", methods=["POST", "OPTIONS"])
 def api_photo_analyze():
+    global _VL_MODEL_OK
     if request.method == "OPTIONS":
         return ("", 204)
     acc = _sess(request)
@@ -2591,31 +2605,44 @@ def api_photo_analyze():
               "detail": "云端视觉识别未连接，已降级为本地基础检查（质量检查与病例库仍可用，历史对比不受影响）"}
     if mk in _V48_VL_CACHE:
         vl = _V48_VL_CACHE[mk]
-        engine = {"mode": "vl", "model": "qwen-vl-plus", "detail": "识别引擎：通义千问 VL（命中缓存）"}
+        engine = {"mode": "vl", "model": (_VL_MODEL_OK or BAILIAN_VL_MODEL),
+                  "detail": "识别引擎：通义千问 VL（命中缓存 · %s）" % (_VL_MODEL_OK or BAILIAN_VL_MODEL)}
     else:
         prompt = ("这是一张皮肤患处照片。请只输出 JSON（不要其他文字）："
                   '{"condition":"皮肤表现的一句话描述","likely_cause":["若疑似叮咬，列出可能的昆虫来源，最多3个；否则空数组"],'
                   '"confidence":"推断置信度 低/中/高","severity":"轻度/中度/重度",'
                   '"features":["观察到的主要特征（颜色 / 边界 / 鳞屑 / 分布等特点），2-6条"],'
                   '"advice_level":"自行处理/建议就医/尽快就医","red_flags":["需要警惕的情况，0-4条"],"note":"一句话补充"}')
-        try:
-            resp = _requests.post(
-                BAILIAN_API_URL,
-                headers={"Authorization": "Bearer " + BAILIAN_API_KEY, "Content-Type": "application/json"},
-                json={"model": "qwen-vl-plus", "messages": [{"role": "user", "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": img}}]}], "temperature": 0.2},
-                timeout=120,
-            )
-            if resp.status_code == 200:
-                content = resp.json()["choices"][0]["message"]["content"]
-                vl = _photo_json(content) or {"condition": (content or "")[:120], "features": [], "advice_level": "自行处理"}
-                _V48_VL_CACHE[mk] = vl
-                engine = {"mode": "vl", "model": "qwen-vl-plus", "detail": "识别引擎：通义千问 VL（在线）"}
-            else:
-                engine["detail"] = "云端识别服务返回 HTTP %s，已降级为本地基础检查" % resp.status_code
-        except Exception as e:
-            engine["detail"] = "云端识别调用失败（%s），已降级为本地基础检查" % str(e)[:80]
+        # v4.9.1：按候选列表逐个尝试视觉模型，成功即记住并复用；
+        # 某模型「不存在/无权限」时自动换下一个，全部失败才降级为本地基础检查。
+        _cands = ([_VL_MODEL_OK] if _VL_MODEL_OK else []) + \
+                 [m for m in _VL_MODEL_CANDIDATES if m != _VL_MODEL_OK]
+        _errs = []
+        for _vm in _cands:
+            try:
+                resp = _requests.post(
+                    BAILIAN_API_URL,
+                    headers={"Authorization": "Bearer " + BAILIAN_API_KEY, "Content-Type": "application/json"},
+                    json={"model": _vm, "messages": [{"role": "user", "content": [
+                        {"type": "text", "text": prompt},
+                        {"type": "image_url", "image_url": {"url": img}}]}], "temperature": 0.2},
+                    timeout=120,
+                )
+                if resp.status_code == 200:
+                    content = resp.json()["choices"][0]["message"]["content"]
+                    vl = _photo_json(content) or {"condition": (content or "")[:120], "features": [], "advice_level": "自行处理"}
+                    _V48_VL_CACHE[mk] = vl
+                    _VL_MODEL_OK = _vm
+                    engine = {"mode": "vl", "model": _vm,
+                              "detail": "识别引擎：通义千问 VL（在线 · %s）" % _vm}
+                    break
+                # 非 200：记录原因后换下一个候选（模型下线时表现为 404）
+                _errs.append("%s→HTTP %s" % (_vm, resp.status_code))
+            except Exception as e:
+                _errs.append("%s→%s" % (_vm, str(e)[:60]))
+        if vl is None:
+            _tail = "；".join(_errs[-2:]) if _errs else "无可用候选模型"
+            engine["detail"] = "云端识别不可用（%s），已降级为本地基础检查" % _tail
 
     # 规则层（保留原知识库逻辑；降级时补充通用提示）
     if vl is not None:

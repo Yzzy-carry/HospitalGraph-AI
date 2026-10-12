@@ -1,0 +1,153 @@
+{
+ "ok": true,
+ "generated_at": "2026-10-12 17:08:13",
+ "rounds": 5,
+ "delta": 1e-05,
+ "curves": [
+  {
+   "sigma": 0.0,
+   "epsilon": null,
+   "epsilon_total": null,
+   "rounds": 5,
+   "clip_threshold": null,
+   "sensitivity": null,
+   "noise_std": null,
+   "weight_max": null,
+   "loss_base": 3.1781,
+   "loss": 1.0059,
+   "acc": 90.1,
+   "holdout_acc": 90.1,
+   "holdout_n": 172,
+   "history": [
+    {
+     "r": 0,
+     "loss": 3.1781,
+     "acc": 4.9
+    },
+    {
+     "r": 1,
+     "loss": 2.3552,
+     "acc": 84.9
+    },
+    {
+     "r": 2,
+     "loss": 1.7741,
+     "acc": 87.5
+    },
+    {
+     "r": 3,
+     "loss": 1.4008,
+     "acc": 88.7
+    },
+    {
+     "r": 4,
+     "loss": 1.1636,
+     "acc": 89.3
+    },
+    {
+     "r": 5,
+     "loss": 1.0059,
+     "acc": 90.1
+    }
+   ],
+   "acc_drop": 0.0
+  },
+  {
+   "sigma": 0.5,
+   "epsilon": 9.69,
+   "epsilon_total": 48.448,
+   "rounds": 5,
+   "clip_threshold": 4.240664,
+   "sensitivity": 1.060166,
+   "noise_std": 0.530083,
+   "weight_max": 0.25,
+   "loss_base": 3.1781,
+   "loss": 1.617,
+   "acc": 53.1,
+   "holdout_acc": 48.3,
+   "holdout_n": 172,
+   "history": [
+    {
+     "r": 0,
+     "loss": 3.1781,
+     "acc": 4.9
+    },
+    {
+     "r": 1,
+     "loss": 2.7328,
+     "acc": 23.0
+    },
+    {
+     "r": 2,
+     "loss": 2.2952,
+     "acc": 33.1
+    },
+    {
+     "r": 3,
+     "loss": 2.0095,
+     "acc": 42.8
+    },
+    {
+     "r": 4,
+     "loss": 1.7719,
+     "acc": 48.7
+    },
+    {
+     "r": 5,
+     "loss": 1.617,
+     "acc": 53.1
+    }
+   ],
+   "acc_drop": 37.0
+  },
+  {
+   "sigma": 2.0,
+   "epsilon": 2.422,
+   "epsilon_total": 12.112,
+   "rounds": 5,
+   "clip_threshold": 4.240664,
+   "sensitivity": 1.060166,
+   "noise_std": 2.120332,
+   "weight_max": 0.25,
+   "loss_base": 3.1781,
+   "loss": 9.3284,
+   "acc": 19.2,
+   "holdout_acc": 12.8,
+   "holdout_n": 172,
+   "history": [
+    {
+     "r": 0,
+     "loss": 3.1781,
+     "acc": 4.9
+    },
+    {
+     "r": 1,
+     "loss": 6.9736,
+     "acc": 10.9
+    },
+    {
+     "r": 2,
+     "loss": 7.9655,
+     "acc": 8.7
+    },
+    {
+     "r": 3,
+     "loss": 8.7261,
+     "acc": 9.2
+    },
+    {
+     "r": 4,
+     "loss": 9.0158,
+     "acc": 12.3
+    },
+    {
+     "r": 5,
+     "loss": 9.3284,
+     "acc": 19.2
+    }
+   ],
+   "acc_drop": 70.9
+  }
+ ],
+ "note": "差分隐私对比（演示级）：对参数更新量按自适应阈值 C 裁剪，再加高斯噪声 N(0,(σ·w_max·C)²)，其中 w_max 为最大院样本权重（当前 0.2500）；ε_single 为单轮高斯机制估计，ε_total 为 5 轮基本组合的保守上界；非严格 DP 会计；每档均为同数据同轮次的独立实验，不写入全局模型。"
+}
