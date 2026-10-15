@@ -769,7 +769,7 @@ function mxOpenFL(){
     var h = [];
     h.push('<p class="mx-note">六家医院各自在本地训练（数据一步不出院），只上传模型参数；服务器按样本量加权聚合出<b>全局诊断模型</b>，训练完成后自动下发到「AI 辅助诊断」模块。</p>');
     h.push('<div class="mx-flstat">' + (st && st.trained
-      ? ('<span>全局模型 <b>v' + st.version + '</b> · 训练于 ' + hgxEsc(st.trained_at || '—') + ' · <b>' + st.params + '</b> 个参数 · 六院联合样本 <b>' + st.total_samples + '</b> · 损失 <b>' + st.loss + '</b>' + (st.hyper && st.hyper.epochs != null ? ' · 本地 ' + hgxEsc(st.hyper.epochs) + ' 轮 / 学习率 ' + hgxEsc(st.hyper.lr) : '') + ' · 准确率 <b>' + st.acc + '%</b>' + (st.holdout_acc != null ? ' · 留出集 <b>' + st.holdout_acc + '%</b>' : '') + (st.feedback_total ? ' · 反馈样本 <b>' + st.feedback_total + '</b> 条' : '') + '</span>')
+      ? ('<span>全局模型 <b>v' + st.version + '</b> · 训练于 ' + hgxEsc(st.trained_at || '—') + ' · <b>' + st.params + '</b> 个参数 · 六院联合样本 <b>' + st.total_samples + '</b> · 损失 <b>' + st.loss + '</b>' + (st.hyper && st.hyper.epochs != null ? ' · 本地 ' + hgxEsc(st.hyper.epochs) + ' 轮 / 学习率 ' + hgxEsc(st.hyper.lr) : '') + ' · 准确率 <b>' + st.acc + '%</b>' + (st.holdout_acc != null ? ' · 留出集 <b>' + st.holdout_acc + '%</b>' : '') + (st.feedback_cumulative != null ? ' · 反馈样本 <b>累计 ' + st.feedback_cumulative + '</b> 条' + (st.feedback_used_last_train != null && st.feedback_used_last_train !== st.feedback_cumulative ? '（上次训练用 ' + st.feedback_used_last_train + '）' : '') : (st.feedback_total ? ' · 反馈样本 <b>' + st.feedback_total + '</b> 条' : '')) + '</span>')
       : '<span>尚未训练：点击「再训一轮」发起首轮联邦训练</span>') + '</div>');
     var bests = fl.best_solo || null;
     h.push('<div class="mx-flcards">');
@@ -781,7 +781,7 @@ function mxOpenFL(){
     h.push('</div>');
     var fbs = fl.feedback_since || {}, fbTotal = 0, fbTxt = [];
     for(var fk in fbs){ if(fbs[fk] > 0){ fbTxt.push(fk + ' 院 ' + fbs[fk]); fbTotal += fbs[fk]; } }
-    h.push('<div class="mx-flstat"><span>本轮新增医生反馈样本：' + (fbTotal ? ('<b>' + fbTotal + '</b> 条（' + fbTxt.join(' · ') + '）') : '暂无（去「AI 辅助诊断」采纳 / 修正结果即可沉淀）') + '</span></div>');
+    h.push('<div class="mx-flstat"><span>上次训练新吸收反馈样本：' + (fbTotal ? ('<b>' + fbTotal + '</b> 条（' + fbTxt.join(' · ') + '）') : '暂无（去「AI 辅助诊断」采纳 / 修正结果即可沉淀）') + '</span></div>');
     h.push('<canvas id="mxFlCv" class="mx-canvas" height="320"></canvas>');
     h.push('<div class="mx-acts"><span class="mx-mut" id="mxFlTip">共 ' + fl.rounds + ' 轮 · 参训样本 ' + fl.total_samples + '</span>' +
            '<button class="btn primary sm" id="mxFlRetrain" type="button">再训一轮</button>' +
@@ -1465,6 +1465,8 @@ function paintRecordForm(d){
   QS('#ncGo').addEventListener('click', rcCreate);
 }
 
+var HGX_RC_VERIFIED = null;   // v4.9.3（N1）：暂存核验通过的姓名与手机号，认领时随请求带给后端复核
+
 function rcMatch(){
   var n = (QS('#rcName').value || '').trim();
   var p = (QS('#rcPhone').value || '').trim();
@@ -1476,11 +1478,13 @@ function rcMatch(){
     var d = r.data;
     if(!r.ok || !d || !d.ok){ msg.innerHTML = '<p class="mx-err">核验失败：' + hgxEsc((d && d.error) || ('HTTP ' + r.status)) + '</p>'; return; }
     if(!d.matched){
+      HGX_RC_VERIFIED = null;
       msg.innerHTML = '<p class="mx-err">' + hgxEsc(d.hint || '未找到匹配档案') + '</p>';
       var nb = QS('#rcNewBox');
       if(nb){ nb.open = true; QS('#ncName').value = n; QS('#ncPhone').value = p; }
       return;
     }
+    HGX_RC_VERIFIED = { name: n, phone: p };
     paintRecordPreview(d.patient, d.already_bound, d.hospital_hint, d.scope);
   }).catch(function(){ msg.innerHTML = '<p class="mx-err">网络异常，请稍后重试</p>'; });
 }
@@ -1518,7 +1522,7 @@ function paintRecordPreview(pat, alreadyBound, hospHint, scope){
   QS('#rcBindGo').addEventListener('click', function(){
     var b = QS('#rcBindGo');
     b.disabled = true;
-    hgxPost('/api/patient/bind', { pid: pat.pid }).then(function(r){
+    hgxPost('/api/patient/bind', { pid: pat.pid, name: (HGX_RC_VERIFIED && HGX_RC_VERIFIED.name) || '', phone: (HGX_RC_VERIFIED && HGX_RC_VERIFIED.phone) || '' }).then(function(r){
       b.disabled = false;
       var d = r.data;
       if(!r.ok || !d || !d.ok){ QS('#rcMsg2').innerHTML = '<p class="mx-err">绑定失败：' + hgxEsc((d && d.error) || ('HTTP ' + r.status)) + '</p>'; return; }

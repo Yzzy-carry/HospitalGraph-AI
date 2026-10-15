@@ -3,14 +3,10 @@
 $ErrorActionPreference = 'Stop'
 # 项目根目录 = 本脚本所在目录
 $P = $PSScriptRoot
-$LogDir = Join-Path $P 'logs'
-New-Item -ItemType Directory -Force $LogDir | Out-Null
-$Log = Join-Path $LogDir ('phone_launcher_' + (Get-Date -Format 'yyyyMMdd_HHmmss') + '.log')
+# v4.9.3：不写日志文件，运行输出全部走 stdout（便于移植与打包）
 
 function Write-Log([string]$m){
-  $line = '[' + (Get-Date -Format 'HH:mm:ss') + '] ' + $m
-  try { Add-Content -Path $Log -Value $line -Encoding UTF8 } catch {}
-  Write-Host $line
+  Write-Host ('[' + (Get-Date -Format 'HH:mm:ss') + '] ' + $m)
 }
 function Show-Alert([string]$m){
   try{
@@ -103,7 +99,7 @@ try{
   if(-not $listen){
     try{ Start-Process -FilePath 'net' -ArgumentList 'start','MYSQL80' -WindowStyle Hidden -ErrorAction SilentlyContinue } catch {}
     $pyExe = Find-Python
-    if(-not $pyExe){ Write-Log '未找到 Python'; Show-Alert ('未找到 Python 解释器，日志：' + $Log); exit 1 }
+    if(-not $pyExe){ Write-Log '未找到 Python'; Show-Alert '未找到 Python 解释器（详情见本窗口输出）'; exit 1 }
     $env:HG_HOST = '0.0.0.0'
     $env:HG_DEBUG = '0'
     Start-Process -FilePath $pyExe -ArgumentList ('"' + (Join-Path $P 'app.py') + '"') -WorkingDirectory $P -WindowStyle Minimized
@@ -112,7 +108,7 @@ try{
       Start-Sleep -Milliseconds 800
       if(Test-LocalService){ $ok = $true; break }
     }
-    if(-not $ok){ Write-Log '服务启动超时'; Show-Alert ('启动超时，请查看日志：' + $Log); exit 1 }
+    if(-not $ok){ Write-Log '服务启动超时'; Show-Alert '启动超时（详情见本窗口输出）'; exit 1 }
     Write-Log '服务已就绪（局域网模式，调试已关闭）'
   } else {
     Write-Log '服务已在手机访问模式运行'
@@ -144,7 +140,7 @@ try{
   }
 
   try{
-    $qrp = Join-Path $P 'logs\phone_qr.png'
+    $qrp = Join-Path $env:TEMP 'hg_phone_qr.png'  # v4.9.3：存系统临时目录，不往项目里写文件
     $qrCode = 'import qrcode,sys; qrcode.make(sys.argv[1]).save(sys.argv[2])'
     $qrCands = @()
     if($pyExe){ $qrCands += $pyExe }
@@ -166,7 +162,7 @@ try{
   } catch { Write-Log ('二维码生成失败：' + $_.Exception.Message) }
 } catch {
   Write-Log ('发生异常：' + $_.Exception.Message)
-  Show-Alert ('手机访问启动器异常：' + $_.Exception.Message + ' 日志：' + $Log)
+  Show-Alert ('手机访问启动器异常：' + $_.Exception.Message)
 }
 Write-Host ''
 Write-Host '按回车键关闭本窗口（不会关闭服务）'

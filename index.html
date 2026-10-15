@@ -1551,7 +1551,7 @@ function mxOpenFL(){
     var h = [];
     h.push('<p class="mx-note">六家医院各自在本地训练（数据一步不出院），只上传模型参数；服务器按样本量加权聚合出<b>全局诊断模型</b>，训练完成后自动下发到「AI 辅助诊断」模块。</p>');
     h.push('<div class="mx-flstat">' + (st && st.trained
-      ? ('<span>全局模型 <b>v' + st.version + '</b> · 训练于 ' + hgxEsc(st.trained_at || '—') + ' · <b>' + st.params + '</b> 个参数 · 六院联合样本 <b>' + st.total_samples + '</b> · 损失 <b>' + st.loss + '</b> · 准确率 <b>' + st.acc + '%</b>' + (st.holdout_acc != null ? ' · 留出集 <b>' + st.holdout_acc + '%</b>' : '') + (st.feedback_total ? ' · 反馈样本 <b>' + st.feedback_total + '</b> 条' : '') + '</span>')
+      ? ('<span>全局模型 <b>v' + st.version + '</b> · 训练于 ' + hgxEsc(st.trained_at || '—') + ' · <b>' + st.params + '</b> 个参数 · 六院联合样本 <b>' + st.total_samples + '</b> · 损失 <b>' + st.loss + '</b> · 准确率 <b>' + st.acc + '%</b>' + (st.holdout_acc != null ? ' · 留出集 <b>' + st.holdout_acc + '%</b>' : '') + (st.feedback_cumulative != null ? ' · 反馈样本 <b>累计 ' + st.feedback_cumulative + '</b> 条' + (st.feedback_used_last_train != null && st.feedback_used_last_train !== st.feedback_cumulative ? '（上次训练用 ' + st.feedback_used_last_train + '）' : '') : (st.feedback_total ? ' · 反馈样本 <b>' + st.feedback_total + '</b> 条' : '')) + '</span>')
       : '<span>尚未训练：点击「再训一轮」发起首轮联邦训练</span>') + '</div>');
     var bests = fl.best_solo || null;
     h.push('<div class="mx-flcards">');
@@ -1563,7 +1563,7 @@ function mxOpenFL(){
     h.push('</div>');
     var fbs = fl.feedback_since || {}, fbTotal = 0, fbTxt = [];
     for(var fk in fbs){ if(fbs[fk] > 0){ fbTxt.push(fk + ' 院 ' + fbs[fk]); fbTotal += fbs[fk]; } }
-    h.push('<div class="mx-flstat"><span>本轮新增医生反馈样本：' + (fbTotal ? ('<b>' + fbTotal + '</b> 条（' + fbTxt.join(' · ') + '）') : '暂无（去「AI 辅助诊断」采纳 / 修正结果即可沉淀）') + '</span></div>');
+    h.push('<div class="mx-flstat"><span>上次训练新吸收反馈样本：' + (fbTotal ? ('<b>' + fbTotal + '</b> 条（' + fbTxt.join(' · ') + '）') : '暂无（去「AI 辅助诊断」采纳 / 修正结果即可沉淀）') + '</span></div>');
     h.push('<canvas id="mxFlCv" class="mx-canvas" height="320"></canvas>');
     h.push('<div class="mx-acts"><span class="mx-mut" id="mxFlTip">共 ' + fl.rounds + ' 轮 · 参训样本 ' + fl.total_samples + '</span>' +
            '<button class="btn primary sm" id="mxFlRetrain" type="button">再训一轮</button>' +

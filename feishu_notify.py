@@ -14,7 +14,7 @@
 - 消息按「登录医院视角」描述；联邦中心账号 = 全局视角
 
 配置：data/feishu_notify.json（不含任何密钥）
-日志：logs/feishu_notify.log
+日志：stdout（随主进程控制台输出，v4.9.3 起不落盘）
 """
 import json
 import os
@@ -24,7 +24,7 @@ import urllib.request
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 _CFG_FILE = os.path.join(BASE, "data", "feishu_notify.json")
-_LOG_FILE = os.path.join(BASE, "logs", "feishu_notify.log")
+# v4.9.3：日志输出到 stdout，不写文件（便于移植 / 打包）
 
 _DEFAULT_CFG = {
     "enabled": True,
@@ -40,10 +40,9 @@ _lock = threading.Lock()
 
 
 def _log(line):
+    """v4.9.3：输出到 stdout（后台线程打印，不影响主流程）"""
     try:
-        os.makedirs(os.path.dirname(_LOG_FILE), exist_ok=True)
-        with open(_LOG_FILE, "a", encoding="utf-8") as f:
-            f.write("%s %s\n" % (time.strftime("%Y-%m-%d %H:%M:%S"), line))
+        print("%s [feishu] %s" % (time.strftime("%Y-%m-%d %H:%M:%S"), line), flush=True)
     except Exception:
         pass
 
@@ -275,4 +274,4 @@ if __name__ == "__main__":
     if r and r.get("code") == 0:
         print("OK message_id:", (r.get("data") or {}).get("message_id"))
     else:
-        print("NOT SENT / FAILED ->", json.dumps(r, ensure_ascii=False) if r else "see logs/feishu_notify.log")
+        print("NOT SENT / FAILED ->", json.dumps(r, ensure_ascii=False) if r else "see stdout")

@@ -1326,7 +1326,15 @@ def _load_aux():
                 blob = _fjson.load(f)
             for h in _FL_HIDS:
                 _FEEDBACK[h] = (blob.get(h) or []) + _FEEDBACK.get(h, [])
-            print("[v4.5] 已加载本地反馈样本：%s" % {h: len(_FEEDBACK[h]) for h in _FL_HIDS})
+            # v4.9.3（N5）：恢复「上次训练以来新增」计数；旧数据无 _since 时按 累计-上次训练用量 推导
+            _sb = blob.get("_since")
+            if not isinstance(_sb, dict):
+                _used = ((_FL_LAST or {}).get("feedback_counts") or {})
+                _sb = {h: max(0, len(_FEEDBACK.get(h, [])) - int(_used.get(h, 0) or 0)) for h in _FL_HIDS}
+            for h in _FL_HIDS:
+                _FB_SINCE[h] = int(_sb.get(h, 0) or 0)
+            print("[v4.5] 已加载本地反馈样本：%s（训练以来新增：%s）" % (
+                {h: len(_FEEDBACK[h]) for h in _FL_HIDS}, dict(_FB_SINCE)))
     except Exception as e:
         print("[v4.5] 反馈样本加载失败：%s" % e)
     try:
@@ -1348,7 +1356,8 @@ def _load_aux():
 def _save_aux():
     try:
         os.makedirs(os.path.dirname(_FEEDBACK_FILE), exist_ok=True)
-        _atomic_write(_FEEDBACK_FILE, _FEEDBACK)
+        # v4.9.3（N5）：连同「上次训练以来新增」计数一起落盘（_since 键与各院样本同文件）
+        _atomic_write(_FEEDBACK_FILE, dict(_FEEDBACK, **{"_since": dict(_FB_SINCE)}))
         _atomic_write(_PHOTO_STATS_FILE, _PHOTO_STATS)
     except Exception as e:
         print("[v4.5] 反馈/统计保存失败：%s" % e)
@@ -1622,6 +1631,8 @@ def api_fl_status():
         "holdout_acc": _MODEL.get("holdout_acc"),
         "holdout_n": _MODEL.get("holdout_n"),
         "feedback_total": _MODEL.get("feedback_total"),
+        "feedback_cumulative": sum(len(_FEEDBACK.get(h, [])) for h in _FL_HIDS),
+        "feedback_used_last_train": _MODEL.get("feedback_total"),
         "hyper": _FL_SUMMARY,
         "dp": ({"clip": _DP_CLIP, "delta": _DP_DELTA, "sigmas": _DP_SIGMAS,
                 "last_generated_at": (_DP_LAST or {}).get("generated_at")}),
@@ -2426,10 +2437,17 @@ def api_patient_bind():
     if not acc:
         return _deny()
     data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return jsonify({"ok": False, "error": "请求体必须为 JSON 对象"}), 400
     pid = str(data.get("pid") or "").strip()
+    name = str(data.get("name") or "").strip()
+    phone = str(data.get("phone") or "").strip()
     p = next((x for x in _PATIENTS.get("patients", []) if x.get("pid") == pid), None)
     if not p:
         return jsonify({"ok": False, "error": "档案不存在"}), 404
+    # v4.9.3（N1）：认领必须复用身份核验——姓名 + 手机号须与档案一致，防止仅凭 pid 枚举认领他人档案
+    if not name or not phone or p.get("name") != name or p.get("phone") != phone:
+        return jsonify({"ok": False, "error": "身份核验未通过：请先完成姓名与手机号核验，再认领该档案"}), 403
     _PATIENTS.setdefault("bindings", {})[acc["username"]] = pid
     _patients_save()
     return jsonify({"ok": True, "bound": True, "patient": _v48_patient_public(p)})

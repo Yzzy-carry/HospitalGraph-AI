@@ -3,14 +3,10 @@
 $ErrorActionPreference = 'Stop'
 # 项目根目录 = 本脚本所在目录（克隆到任意路径均可运行）
 $P = $PSScriptRoot
-$LogDir = Join-Path $P 'logs'
-New-Item -ItemType Directory -Force $LogDir | Out-Null
-$Log = Join-Path $LogDir ('launcher_' + (Get-Date -Format 'yyyyMMdd_HHmmss') + '.log')
+# v4.9.3：不写日志文件，运行输出全部走 stdout（控制台窗口直接可见，便于移植与打包）
 
 function Write-Log([string]$m){
-  $line = '[' + (Get-Date -Format 'HH:mm:ss') + '] ' + $m
-  Add-Content -Path $Log -Value $line -Encoding UTF8
-  Write-Host $line
+  Write-Host ('[' + (Get-Date -Format 'HH:mm:ss') + '] ' + $m)
 }
 function Show-Alert([string]$m){
   try{
@@ -49,7 +45,7 @@ try{
     $pyExe = Find-Python
     if(-not $pyExe){
       Write-Log '未找到可用的 Python 解释器'
-      Show-Alert ('未找到可用的 Python 解释器（已尝试项目 runtime / .venv 与系统 python）。请查看日志：' + $Log)
+      Show-Alert ('未找到可用的 Python 解释器（已尝试项目 runtime / .venv 与系统 python）。请查看本窗口上方的输出。')
       exit 1
     }
     Write-Log ('使用解释器：' + $pyExe)
@@ -62,7 +58,7 @@ try{
     }
     if(-not $ok){
       Write-Log '等待约 24 秒后服务仍未就绪'
-      Show-Alert ('后端启动失败或超时。请查看日志：' + $Log)
+      Show-Alert ('后端启动失败或超时。请查看本窗口上方的输出。')
       exit 1
     }
     Write-Log '服务已就绪'
@@ -75,5 +71,5 @@ try{
   }
 } catch {
   Write-Log ('发生异常：' + $_.Exception.Message)
-  Show-Alert ('启动器发生异常：' + $_.Exception.Message + ' - 日志：' + $Log)
+  Show-Alert ('启动器发生异常：' + $_.Exception.Message)
 }
