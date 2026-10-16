@@ -221,6 +221,10 @@ def api_diagnose():
     acc = _sess(request)
     if not acc:
         return _deny()
+    # v4.10 复核修复（F1）：联邦中心不看病——诊断面向医院账号
+    # （另：ALL 口径下各病发病率兜底 0.05，特例预警的 rate < 0.05 恒为假、会静默失效）
+    if acc.get("center"):
+        return jsonify({"ok": False, "error": "诊断面向医院账号：联邦中心不看病（中心只做参数聚合）"}), 400
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"ok": False, "error": "请求体必须为 JSON 对象"}), 400
@@ -1592,8 +1596,18 @@ def api_feedback_synthesize():
         pool.setdefault(_r["dn"], []).append(_r["sn"])
     if not pool:
         return jsonify({"ok": False, "error": "知识库为空，无法生成样本"}), 500
+    # v4.10 复核修复（F3）：focus/omit 无效值显式报错（不再静默回退——
+    # 否则调用方以为生成了定向不典型样本，探针对比演示会隐性失效）
+    if focus and focus not in pool:
+        return jsonify({"ok": False, "error": "未知病种：%s（focus 需为知识库内的病名）" % focus}), 400
+    if omit and not focus:
+        return jsonify({"ok": False, "error": "omit 需与 focus 同用（指定病种的不典型表现）"}), 400
+    if focus and omit:
+        _fsyms = pool.get(focus) or []
+        if omit not in _fsyms or len(_fsyms) < 3:
+            return jsonify({"ok": False, "error": "症状「%s」不在「%s」的核心症状中（或其核心症状不足 3 个），无法生成该不典型表现" % (omit, focus)}), 400
     import random as _rnd
-    _rng = _rnd.Random(20261016)
+    _rng = _rnd.Random()   # v4.10 复核修复（F2）：系统熵做种子，重复点击不再生成相同样本
     _names = [x for x in pool if pool[x]]
     _added = 0
     for _ in range(n):

@@ -1645,7 +1645,13 @@ function enterView(title, sub){
 }
 function setNav(name){ QSA('.navi').forEach(function(b){ b.classList.toggle('on', b.getAttribute('data-v') === name); }); }
 function closeSide(){ QS('#side').classList.remove('open'); QS('#sideMask').classList.remove('show'); }
-function openView(name){
+  function openView(name){
+  /* v4.10 复核修复（F1）：中心账号 URL 直达医院侧视图的防线（导航已隐藏，此处拦 #hash/#view= 直达） */
+  if(HGX.isCenter && (name === 'diag' || name === 'record' || name === 'photo')){
+    enterView('联邦中心 · 聚合控制台', '');
+    viewHost.innerHTML = '<p class="mx-note">此功能面向医院账号——联邦中心不看病、不存病历，只做参数聚合。请从左侧选择中心功能，或使用医院账号登录。</p>';
+    return;
+  }
   var ok = true;
   if(name === 'home'){ ACTIVE = 'home'; setNav('home'); renderHome(); }
   else if(name === 'record'){ ACTIVE = 'record'; setNav('record'); mxOpenRecord(); }
