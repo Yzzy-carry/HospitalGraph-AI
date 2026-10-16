@@ -1688,6 +1688,7 @@ function homeCard(v, title, desc){
   return '<button class="hcard" data-v="' + v + '" type="button"><svg class="ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' + HOME_ICONS[v] + '</svg><b>' + title + '</b><span>' + desc + '</span><em>进入 →</em></button>';
 }
 function renderHome(){
+  if(HGX.isCenter){ renderConsole(); return; }
   enterView('概览', '欢迎回来');
   var who = HGX.name || HGX.user || '';
   var roleTxt = HGX.isCenter ? '联邦中心 · 全局视图' : (HGX.hospital || 'A') + ' 院 · 机构视图';
@@ -1844,6 +1845,78 @@ function mxOpenFeed(){
   }
 }
 
+/* ---------- v4.10（P1）：联邦中心 · 聚合控制台 ---------- */
+function renderConsole(){
+  enterView('联邦中心 · 聚合控制台', '参数汇聚 → 加权聚合 → 全局模型下发六院');
+  hgxGet('/api/fl/center').then(function(c){
+    if(!c || !c.ok){ viewHost.innerHTML = '<p class="mx-err">' + hgxEsc((c && c.error) || '控制台数据加载失败') + '</p>'; return; }
+    var g = c.global || {}, hs = c.hospitals || [];
+    var maxW = 0;
+    for(var i = 0; i < hs.length; i++){ maxW = Math.max(maxW, hs[i].weight || 0); }
+    if(!(maxW > 0)){ maxW = 1; }
+    var h = [];
+    h.push('<div class="home-hero"><h3>聚合控制台 · 全局模型 v' + (g.version || '—') + '</h3>');
+    h.push('<p>联邦中心不看病、不存病历——只接收六院<b>训练后的参数</b>，按样本量加权聚合成全局模型，再下发回各院服务诊断。<b>样本全程不出院。</b></p>');
+    var chips = [];
+    if(g.acc != null){ chips.push('训练集准确率 ' + g.acc + '%'); }
+    if(g.holdout_acc != null){ chips.push('留出集 ' + g.holdout_acc + '%（n=' + (g.holdout_n || '—') + '）'); }
+    if(g.params != null){ chips.push(g.params + ' 参数 · ' + (g.rounds || '—') + ' 轮 FedAvg'); }
+    if(g.trained_at){ chips.push('训练于 ' + hgxEsc(g.trained_at)); }
+    h.push('<div class="home-chips">' + chips.map(function(t){ return '<span class="hchip">' + hgxEsc(t) + '</span>'; }).join('') + '</div></div>');
+    h.push('<div class="mx-card"><div class="mx-ch"><b>① 参数汇聚 · 六院权重</b><span class="mx-cdept">聚合权重 = 各院唯一参训样本量 n院 / N（数据越多，影响越大）</span></div>');
+    for(var i2 = 0; i2 < hs.length; i2++){
+      var x = hs[i2], pct = Math.round((x.weight || 0) * 1000) / 10;
+      var bw = Math.max(3, Math.round((x.weight || 0) / maxW * 100));
+      h.push('<div style="margin:11px 0 2px"><div style="display:flex;justify-content:space-between;font-size:.78rem"><span><b>' + hgxEsc(x.name) + '</b> · 样本 ' + (x.samples || 0) + (x.solo_acc != null ? ' · 单干准确率 ' + x.solo_acc + '%' : '') + '</span><b>' + pct + '%</b></div>' +
+        '<div class="mx-bar" style="display:block;margin:4px 0 0"><i style="width:' + bw + '%"></i></div></div>');
+    }
+    h.push('</div>');
+    h.push('<div class="mx-card"><div class="mx-ch"><b>② 聚合下发回执</b><span class="mx-cdept">全局模型 v' + (g.version || '—') + ' · 已下发</span></div>');
+    h.push('<p class="mx-note">新全局模型即刻下发六院，各院「AI 辅助诊断」自动切换到新版本：</p>');
+    h.push('<div class="mx-hints">' + hs.map(function(x2){ return '<span class="rc-chip">' + hgxEsc(x2.name) + ' · 已接收 v' + (g.version || '—') + '</span>'; }).join('') + '</div>');
+    h.push('<div class="mx-acts" style="margin-top:12px"><button class="btn ghost dark sm" id="ccWatch" type="button">查看训练过程</button>' +
+      '<button class="btn primary sm" id="ccRe" type="button">再聚合一轮</button></div></div>');
+    var hasW = false;
+    for(var i3 = 0; i3 < hs.length; i3++){ if((hs[i3].weakest || []).length){ hasW = true; break; } }
+    h.push('<div class="mx-card"><div class="mx-ch"><b>③ 补短板对照 · 联邦把各院弱项补起来</b><span class="mx-cdept">本院患者留出集：单干 F1 → 联邦 F1</span></div>');
+    if(hasW){
+      h.push('<table class="ph-table"><tr><th>医院</th><th>本院单干</th><th>联邦全局</th><th>最弱病类（单干 F1 → 联邦 F1）</th></tr>');
+      for(var i4 = 0; i4 < hs.length; i4++){
+        var y = hs[i4];
+        var wtxt = (y.weakest || []).map(function(w2){
+          var ff = (w2.federal_f1 != null ? w2.federal_f1 : '—');
+          var d2 = (w2.federal_f1 != null ? (w2.federal_f1 - w2.f1) : null);
+          return hgxEsc(w2.name) + '：' + w2.f1 + ' → <b>' + ff + '</b>' + (d2 != null ? '（' + (d2 >= 0 ? '+' : '') + (Math.round(d2 * 10) / 10) + 'pp）' : '');
+        }).join('<br>');
+        if(!wtxt){ wtxt = '<span style="color:var(--txm)">留出集样本不足</span>'; }
+        h.push('<tr><td>' + hgxEsc(y.name) + '</td><td>' + (y.own_holdout_acc != null ? y.own_holdout_acc + '%' : '—') + '</td><td>' + (g.holdout_acc != null ? g.holdout_acc + '%' : '—') + '</td><td style="font-size:.76rem">' + wtxt + '</td></tr>');
+      }
+      h.push('</table>');
+      h.push('<p class="mx-mut" style="font-size:.72rem;margin-top:8px">「本院单干」= 仅用该院数据训练的模型在该院患者留出集上的表现；「联邦全局」= 六院参数加权聚合后的模型。对照即联邦补短板的价值。</p>');
+    } else {
+      h.push('<p class="mx-note">暂无逐院分类对照：点击「再聚合一轮」后生成（需 v4.10 起的训练结果）。</p>');
+    }
+    h.push('</div>');
+    var cb = c.contributions || {}, ct = 0, cbT = [];
+    for(var k2 in cb){ ct += cb[k2]; if(cb[k2] > 0){ cbT.push(k2 + ' 院 ' + cb[k2] + ' 条'); } }
+    h.push('<div class="mx-card"><div class="mx-ch"><b>④ 参数贡献流水</b><span class="mx-cdept">各院累计沉淀的本地样本（数据不出院，仅参数上行）</span></div>');
+    h.push('<p class="mx-note">累计 <b>' + ct + '</b> 条本地反馈样本已参与联邦训练' + (cbT.length ? '：' + cbT.join(' · ') : '。') + '</p>');
+    var bs2 = c.best_solo || {};
+    if(bs2.name){ h.push('<p class="mx-mut" style="font-size:.74rem">对照：最好单院（' + hgxEsc(bs2.name) + '）准确率 ' + bs2.acc + '% vs 联邦全局 ' + (g.acc != null ? g.acc + '%' : '—') + ' —— 联邦把六院的短板一起补齐。</p>'); }
+    h.push('</div>');
+    viewHost.innerHTML = h.join('');
+    QS('#ccWatch').addEventListener('click', function(){ openView('fl'); });
+    QS('#ccRe').addEventListener('click', function(){
+      var b2 = QS('#ccRe'); b2.disabled = true; b2.textContent = '聚合中…';
+      hgxPost('/api/fl/train?rounds=15', {}).then(function(r){
+        b2.disabled = false; b2.textContent = '再聚合一轮';
+        if(r.ok && r.data && r.data.ok){ toast('聚合完成：全局模型已下发六院'); renderConsole(); }
+        else { toast((r.data && r.data.error) || '聚合失败'); }
+      }).catch(function(){ b2.disabled = false; b2.textContent = '再聚合一轮'; toast('聚合失败'); });
+    });
+  }).catch(function(){ viewHost.innerHTML = '<p class="mx-err">控制台接口不可用（/api/fl/center）。</p>'; });
+}
+
 /* ---------- 登录 / 注册 ---------- */
 function showAuth(){
   try{ localStorage.removeItem('hg_token'); }catch(e){}
@@ -1862,6 +1935,15 @@ function boot(user){
   QS('#sideNm').textContent = HGX.name;
   QS('#sideRl').textContent = HGX.isCenter ? '联邦中心 · 全局视图' : (HGX.hospital || 'A') + ' 院 · 机构视图';
   QS('#userChip').textContent = HGX.name + (HGX.isCenter ? ' · 中心' : ' · ' + HGX.hospital + ' 院');
+  /* v4.10（P1）：联邦中心 → 隐藏医院侧功能入口（保留图谱/训练/问答只读视角），首页进入聚合控制台 */
+  QSA('.navi').forEach(function(b){
+    var bv = b.getAttribute('data-v');
+    if(HGX.isCenter && (bv === 'record' || bv === 'diag' || bv === 'photo' || bv === 'feed')){ b.style.display = 'none'; }
+  });
+  if(HGX.isCenter){
+    var _hb = QS('.navi[data-v="home"]');
+    if(_hb){ _hb.innerHTML = _hb.innerHTML.replace('概览', '聚合控制台'); }
+  }
   QS('#authScreen').hidden = true;
   QS('#appShell').hidden = false;
   loadPat();

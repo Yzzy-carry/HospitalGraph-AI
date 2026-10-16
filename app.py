@@ -1332,7 +1332,27 @@ def _fed_run(rounds=15, sigma=0.0, clip=_DP_CLIP, dp_seed=None):
         X, Y = cases[hid]
         Wl, bl = local_fit(_fnp.zeros((D, S)), _fnp.zeros(D), X, Y, _FL_SOLO_EPOCHS, _FL_LR)
         l2, a2 = pooled_eval(Wl, bl)
-        solo.append({"id": hid, "name": hname, "n": len(Y), "loss": l2, "acc": a2})
+        # v4.10（P1）：本院单干在「本院患者留出集」上的分类表现（聚合控制台·补短板对照）
+        Xh_h, Yh_h = holdout[hid]
+        ph2 = softmax(Wl, bl, Xh_h)
+        pred_h = ph2.argmax(axis=1)
+        conf_h = [[0] * D for _ in range(D)]
+        for _t, _pr in zip(Yh_h, pred_h):
+            conf_h[int(_t)][int(_pr)] += 1
+        per_h = []
+        for _j in range(D):
+            _tp = conf_h[_j][_j]
+            _fp = sum(conf_h[_i][_j] for _i in range(D)) - _tp
+            _fn = sum(conf_h[_j]) - _tp
+            _prc = _tp / (_tp + _fp) if (_tp + _fp) else 0.0
+            _rc = _tp / (_tp + _fn) if (_tp + _fn) else 0.0
+            _f1 = (2 * _prc * _rc / (_prc + _rc)) if (_prc + _rc) else 0.0
+            per_h.append({"name": names[_j], "support": int(sum(conf_h[_j])),
+                          "precision": round(_prc * 100, 1), "recall": round(_rc * 100, 1),
+                          "f1": round(_f1 * 100, 1)})
+        own_acc = float(_fnp.mean(pred_h == Yh_h))
+        solo.append({"id": hid, "name": hname, "n": agg_ns.get(hid, len(Y)), "loss": l2, "acc": a2,
+                     "own_holdout": {"n": int(len(Yh_h)), "acc": round(own_acc * 100, 1), "per_class": per_h}})
 
     # 导出可解释权重（症状重要度，按病种归一）；参数 = Σ症状权重 + 病种偏置
     weights = {}
@@ -1746,6 +1766,46 @@ def api_fl_probe():
                        "target_rank": t_rank, "target_score": t_score})
     return jsonify({"ok": True, "hospital": hospital_id,
                     "version": _MODEL.get("version"), "probes": probes})
+
+
+@app.route("/api/fl/center")
+def api_fl_center():
+    """v4.10（P1·聚合控制台）：联邦中心专属——参数汇聚 / 聚合下发 / 补短板对照。
+    中心不看病、不存病历，只接收各院训练后的参数；本端点汇总联邦的「过程」与「影响」。"""
+    acc = _sess(request)
+    if not acc:
+        return _deny()
+    if not acc.get("center"):
+        return jsonify({"ok": False, "error": "仅联邦中心账号可访问聚合控制台"}), 403
+    ns = _fl_sample_ns()
+    tot = float(sum(ns.values())) or 1.0
+    gper = {c["name"]: c for c in (((_FL_LAST or {}).get("holdout") or {}).get("per_class") or [])}
+    hospitals = []
+    for hid, hname, base in _FL_SPECS:
+        solo_e = next((s for s in ((_FL_LAST or {}).get("solo") or []) if s.get("id") == hid), None)
+        own = (solo_e or {}).get("own_holdout") or {}
+        weakest = sorted([c for c in (own.get("per_class") or []) if c.get("support", 0) >= 2],
+                         key=lambda c: c["f1"])[:3]
+        hospitals.append({
+            "id": hid, "name": hname, "samples": ns[hid],
+            "weight": round(ns[hid] / tot, 4),
+            "solo_acc": (solo_e or {}).get("acc"),
+            "own_holdout_acc": own.get("acc"),
+            "weakest": [{"name": c["name"], "f1": c["f1"], "recall": c["recall"],
+                         "support": c["support"],
+                         "federal_f1": (gper.get(c["name"]) or {}).get("f1")} for c in weakest],
+        })
+    return jsonify({
+        "ok": True, "role": "center",
+        "global": {"version": _MODEL.get("version"), "acc": _MODEL.get("acc"),
+                   "holdout_acc": _MODEL.get("holdout_acc"), "holdout_n": _MODEL.get("holdout_n"),
+                   "params": _MODEL.get("params"), "rounds": _MODEL.get("rounds"),
+                   "trained_at": _MODEL.get("trained_at"), "loss": _MODEL.get("loss")},
+        "hospitals": hospitals,
+        "contributions": {h: len(_FEEDBACK.get(h, [])) for h in _FL_HIDS},
+        "best_solo": (_FL_LAST or {}).get("best_solo"),
+        "note": "中心只接收各院训练后的参数（样本不出院）；聚合权重 = 各院唯一参训样本量占比",
+    })
 
 
 @app.route("/api/fl/dp", methods=["GET", "POST", "OPTIONS"])
