@@ -515,12 +515,25 @@ function mxOpenDiag(){
         var arr = r.data;
         if(!arr || !arr.length){ res.innerHTML = '<p class="mx-note">未匹配到相关疾病，请增加或更换症状后重试。</p>'; return; }
         var h2 = [];
+        /* v4.10（P2）：特例预警横幅 —— 规则层安全网，来自后端 special_alert 标记 */
+        for(var al = 0; al < arr.length; al++){
+          var A = arr[al] && arr[al].special_alert;
+          if(!A){ continue; }
+          h2.push('<div class="mx-card" style="border-color:#e9b4b4;background:#fff8f8">' +
+            '<div class="mx-ch"><b style="color:#b91c1c">⚠️ 特例预警 · ' + hgxEsc(A.disease) + '</b>' +
+            '<span class="mx-badge mx-sv-' + hgxEsc(A.severity) + '">' + hgxEsc(A.severity) + '</span>' +
+            '<span class="mx-cdept">' + hgxEsc(A.dept) + '</span></div>' +
+            '<p class="mx-note" style="color:#7f1d1d">核心症状命中 <b>' + hgxEsc(A.coverage) + '</b>（' + Math.round(A.cov * 100) + '%），但本院发病率仅 <b>' + A.local_rate + '%</b>，' +
+            '发病率因子结构性压低了综合分（当前排名第 ' + A.rank + ' · ' + A.score + ' 分，首推为「' + hgxEsc(A.top1 || '—') + '」）。此类个例在统计模型中占比极低，易被漏诊。</p>' +
+            '<p class="mx-note" style="color:#7f1d1d">本预警为<b>规则层安全网</b>，不依赖模型概率排名。建议结合排查：' + hgxEsc((A.tests || []).join('、') || '—') + '</p></div>');
+        }
         for(var k = 0; k < arr.length; k++){
           var d = arr[k], prev = d.prevention || [];
           h2.push('<div class="mx-card">');
           h2.push('<div class="mx-ch"><span class="mx-cic">' + hgxEsc(d.icon || '·') + '</span><b>' + hgxEsc(d.disease) + '</b>' +
                   '<span class="mx-badge mx-sv-' + hgxEsc(d.severity) + '">' + hgxEsc(d.severity) + '</span>' +
                   (d.model_ver ? '<span class="mx-badge mx-model">全局 v' + d.model_ver + '</span>' : '') +
+                  (d.special_alert ? '<span class="mx-badge" style="color:#b91c1c;border-color:#e9b4b4;background:rgba(220,38,38,.08)">特例预警</span>' : '') +
                   '<span class="mx-cdept">' + hgxEsc(d.dept) + ' · 命中 ' + d.matched + '/' + d.total + ' 症状</span>' +
                   '<span class="mx-cscore">' + d.score + '<i>分</i>' + (d.score_base != null ? '<em class="mx-based">基础版 ' + d.score_base + '</em>' : '') + '</span></div>');
           h2.push('<div class="mx-bar"><i style="width:' + Math.max(2, Math.min(100, d.score)) + '%"></i></div>');

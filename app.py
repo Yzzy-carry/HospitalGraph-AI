@@ -257,6 +257,7 @@ def api_diagnose():
     for _r in q("SELECT ds.disease_id AS did, s.name AS nm FROM disease_symptoms ds "
                 "JOIN symptoms s ON s.id = ds.symptom_id"):
         _dx_syms.setdefault(_r["did"], []).append(_r["nm"])
+    _dx_meta = {}   # v4.10（P2）：各病评分元数据，供特例预警判定
     results = []
     for d in diseases:
         ds_symptoms = _dx_syms.get(d["id"], [])
@@ -301,6 +302,7 @@ def api_diagnose():
         )
         avg_rate = float(rate_row[0]["rate"]) if rate_row else 0.05
         br_score = min(avg_rate * 5, 1)
+        _dx_meta[d["name"]] = {"matched": matched, "total": len(ds_symptoms), "rate": avg_rate}
 
         # 严重度 (20%)
         sv_map = {"危急": 1.0, "严重": 0.7, "中度": 0.5, "轻度": 0.3}
@@ -372,6 +374,40 @@ def api_diagnose():
             )
 
     results.sort(key=lambda x: x["score"], reverse=True)
+
+    # ── v4.10（P2）特例预警：规则层安全网 ──
+    # 症状高度吻合（覆盖 ≥ _ALERT_COV 且命中 ≥ _ALERT_MIN_HIT）但本院罕见（< _ALERT_RATE）、
+    # 且不是首推（排名 > _ALERT_TOPN）→ 独立预警：首推常见病时提醒勿漏罕见病，
+    # 防止个例被「发病率因子 × 统计平均」结构性稀释而漏诊。
+    alerts = []
+    for _i, _r in enumerate(results):
+        if _i < _ALERT_TOPN:
+            continue
+        _m = _dx_meta.get(_r["disease"]) or {}
+        _cov = _m.get("matched", 0) / max(_m.get("total", 1), 1)
+        if _m.get("matched", 0) >= _ALERT_MIN_HIT and _cov >= _ALERT_COV and _m.get("rate", 1) < _ALERT_RATE:
+            alerts.append({
+                "disease": _r["disease"], "dept": _r["dept"], "severity": _r["severity"],
+                "coverage": "%d/%d" % (_m["matched"], _m["total"]), "cov": round(_cov, 3),
+                "local_rate": round(_m["rate"] * 100, 2), "rank": _i + 1, "score": _r["score"],
+                "tests": (_r.get("tests") or [])[:3],
+                "top1": results[0]["disease"] if results else None,
+            })
+    alerts.sort(key=lambda a: a["cov"], reverse=True)
+    alerts = alerts[:2]
+    if alerts:
+        _by = {a["disease"]: a for a in alerts}
+        out = []
+        for _r in results[:6]:
+            if _r["disease"] in _by:
+                _r = dict(_r, special_alert=_by[_r["disease"]])
+            out.append(_r)
+        _seen = {r["disease"] for r in out}
+        for a in alerts:
+            if a["disease"] not in _seen:
+                _src = next(x for x in results if x["disease"] == a["disease"])
+                out.append(dict(_src, special_alert=a))
+        return jsonify(out)
     return jsonify(results[:6])
 
 # ── API: 知识图谱（节点 + 边 · 联邦聚合：本院贡献 / 六院并集）──
@@ -970,6 +1006,20 @@ _FL_SUMMARY = {
     "rounds_default": 15,
 }
 
+# ── v4.10（P2）：特例预警 + 罕见样本加权 ──
+# 背景：评分 = 症状×0.6 + 本院发病率×0.2 + 严重度×0.2。罕见病（如急性胆囊炎本院 2–6%）
+# 在发病率因子上结构性吃亏（因子 = 发病率×5，封顶 1），症状高度吻合时综合排名仍可能被
+# 常见病压住、甚至被统计平均淹没。两层对策：
+#   ① 推理层：规则式「特例预警」——不依赖模型概率，命中核心症状且罕见即独立预警；
+#   ② 训练层：罕见病反馈样本按 _RARE_BOOST_K 倍复制进本地训练集（代价敏感学习），
+#      对冲「个例占比过低被稀释」；聚合权重仍按唯一样本数计，不放大该院全局话语权。
+_ALERT_COV = 0.7      # 预警：核心症状覆盖率下限
+_ALERT_MIN_HIT = 3    # 预警：至少命中 3 个核心症状
+_ALERT_RATE = 0.05    # 预警：本院发病率上限（<5% 视为罕见）
+_ALERT_TOPN = 1      # 已排前 N 名（首推）不预警；首推为常见病而罕见病高度吻合时触发
+_RARE_BOOST_K = 3     # 罕见病反馈样本训练复制倍数（1 = 关闭）
+_RARE_RATE = 0.05     # 罕见病阈值（与预警口径一致）
+
 # ── v4.9：差分隐私（DP-SGD 风格）常量与状态 ──
 # 机制：客户端每轮先按阈值 C 裁剪参数更新，再叠加高斯噪声 N(0, σ²C²)，
 #       理论隐私预算按经典高斯机制 ε = Δf·sqrt(2·ln(1.25/δ))/σ 估计（Δf = C）。
@@ -1033,6 +1083,11 @@ def _fed_dataset():
             "SELECT s.name FROM symptoms s "
             "JOIN disease_symptoms ds ON s.id = ds.symptom_id "
             "WHERE ds.disease_id = %s ORDER BY s.id", d["id"])])
+    # v4.10（P2）：病-院发病率索引（罕见判定与样本加权用）
+    idmap = {d["name"]: d["id"] for d in diseases}
+    rate_lu = {}
+    for _r in q("SELECT disease_id, hospital_id, rate FROM prevalence_rates"):
+        rate_lu[(_r["disease_id"], _r["hospital_id"])] = float(_r["rate"])
 
     def synth(rng_, prior, n):
         X, Y = [], []
@@ -1055,6 +1110,8 @@ def _fed_dataset():
     cases = {}
     holdout = {}
     fb_counts = {}
+    fb_boost = {}   # v4.10（P2）：各院被加权的罕见反馈样本数
+    agg_ns = {}     # v4.10（P2）：各院唯一参训样本数（聚合权重口径）
     for hi, (hid, hname, n) in enumerate(_FL_SPECS):
         prior = _fnp.ones(D)
         prior[(hi * 2) % D] *= 3.2
@@ -1062,7 +1119,10 @@ def _fed_dataset():
         prior = prior / prior.sum()
         X, Y = synth(rng, prior, n)
         # 本院反馈样本（数据不出院：直接进入本地训练集）
+        # v4.10（P2）：罕见病反馈样本按 _RARE_BOOST_K 倍复制（代价敏感学习），
+        #   对冲个例被统计平均稀释；聚合权重仍按唯一样本数（agg_ns）计。
         fbx, fby = [], []
+        fb_uniq = 0
         for item in _FEEDBACK.get(hid, []):
             yi = nidx.get(item.get("disease"))
             if yi is None:
@@ -1076,17 +1136,26 @@ def _fed_dataset():
                         x[j] = 1.0
                         got = True
             if got:
-                fbx.append(x)
-                fby.append(yi)
+                fb_uniq += 1
+                _rid = idmap.get(item.get("disease"))
+                _rr = rate_lu.get((_rid, hid)) if _rid is not None else None
+                _k = 1
+                if _RARE_BOOST_K > 1 and _rr is not None and _rr < _RARE_RATE:
+                    _k = _RARE_BOOST_K
+                    fb_boost[hid] = fb_boost.get(hid, 0) + 1
+                for _ in range(_k):
+                    fbx.append(x)
+                    fby.append(yi)
         if fbx:
             X = _fnp.vstack([X, _fnp.array(fbx)])
             Y = _fnp.concatenate([Y, _fnp.array(fby)])
-        fb_counts[hid] = len(fbx)
+        fb_counts[hid] = fb_uniq
+        agg_ns[hid] = n + fb_uniq
         cases[hid] = (X, Y)
         # 留出集（独立种子，仅评估用）
         n_hold = max(25, int(n * 0.25))
         holdout[hid] = synth(rng_h, prior, n_hold)
-    return names, syms, dsyms, cases, holdout, fb_counts
+    return names, syms, dsyms, cases, holdout, fb_counts, fb_boost, agg_ns
 
 def _dp_epsilon(sigma, delta=_DP_DELTA, rounds=1, compose=True):
     """差分隐私预算估计（演示级口径，诚实标注边界）。
@@ -1132,7 +1201,7 @@ def _fed_run(rounds=15, sigma=0.0, clip=_DP_CLIP, dp_seed=None):
     _dp_noise_scale = None          # 实际使用的噪声标准差（聚合灵敏度 × σ）
     _w_max = max(nn for _, _, nn in _FL_SPECS) / max(1.0, float(sum(nn for _, _, nn in _FL_SPECS)))
     _sens = None                    # 实际使用的灵敏度（w_max × C）
-    names, syms, dsyms, cases, holdout, fb_counts = _fed_dataset()
+    names, syms, dsyms, cases, holdout, fb_counts, fb_boost, agg_ns = _fed_dataset()
     D = len(names)
     S = len(syms)
     X_all = _fnp.vstack([cases[h][0] for h, _, _ in _FL_SPECS])
@@ -1198,7 +1267,7 @@ def _fed_run(rounds=15, sigma=0.0, clip=_DP_CLIP, dp_seed=None):
             Wl, bl = local_fit(W, b, X, Y, _FL_EPOCHS, _FL_LR)
             Ws.append(Wl)
             bs.append(bl)
-            ns.append(len(Y))
+            ns.append(agg_ns.get(hid, len(Y)))   # v4.10（P2）：聚合权重按唯一样本数（不含加权复制）
         tot = float(sum(ns))
         # 各院相对全局模型的「参数更新量」
         dWs = [wl - W for wl in Ws]
@@ -1261,6 +1330,9 @@ def _fed_run(rounds=15, sigma=0.0, clip=_DP_CLIP, dp_seed=None):
         "total_samples": int(len(Y_all)),
         "synthetic_samples": sum(s[2] for s in _FL_SPECS),
         "feedback_counts": fb_counts,
+        "feedback_boosted": fb_boost,
+        "unique_samples": int(sum(agg_ns.values())),
+        "weights_used": {h: round(agg_ns[h] / max(1.0, float(sum(agg_ns.values()))), 4) for h in _FL_HIDS},
         "feedback_since": {h: _FB_SINCE.get(h, 0) for h in _FL_HIDS},
         "history": history,
         "solo": solo,
