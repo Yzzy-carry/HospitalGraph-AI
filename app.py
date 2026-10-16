@@ -1020,6 +1020,30 @@ _ALERT_TOPN = 1      # 已排前 N 名（首推）不预警；首推为常见病
 _RARE_BOOST_K = 3     # 罕见病反馈样本训练复制倍数（1 = 关闭）
 _RARE_RATE = 0.05     # 罕见病阈值（与预警口径一致）
 
+# ── v4.10（P3）：投喂台 · 探针病例与聚合权重 ──
+# 探针 = 固定症状组合：投喂前后各跑一次「AI 辅助诊断」同口径评分，对比排名变化。
+# tb 探针对应 P2 特例预警的演示位（肺结核去「咯血」，首推常见病肺炎、肺结核屈居第 2）。
+_V410_PROBES = [
+    {"id": "tb", "label": "不典型呼吸道症状（无咯血）", "target": "肺结核",
+     "symptoms": ["发热", "咳嗽", "咳痰", "体重下降", "盗汗"]},
+    {"id": "gd", "label": "胆道急腹症（无黄疸）", "target": "急性胆囊炎",
+     "symptoms": ["恶心", "发热", "呕吐", "右上腹痛"]},
+    {"id": "pn", "label": "典型肺炎（对照）", "target": "肺炎",
+     "symptoms": ["呼吸困难", "发热", "咳嗽", "咳痰"]},
+]
+
+
+def _fl_sample_ns():
+    """v4.10（P3）：各院当前唯一参训样本数（基础配额 + 本院反馈累计，不含加权复制）"""
+    return {h: n + len(_FEEDBACK.get(h, [])) for h, _, n in _FL_SPECS}
+
+
+def _fl_weights():
+    """v4.10（P3）：各院 FedAvg 聚合权重 = n院 / N（数据越多，影响越大）"""
+    _ns = _fl_sample_ns()
+    _tot = float(sum(_ns.values())) or 1.0
+    return {h: round(v / _tot, 4) for h, v in _ns.items()}
+
 # ── v4.9：差分隐私（DP-SGD 风格）常量与状态 ──
 # 机制：客户端每轮先按阈值 C 裁剪参数更新，再叠加高斯噪声 N(0, σ²C²)，
 #       理论隐私预算按经典高斯机制 ε = Δf·sqrt(2·ln(1.25/δ))/σ 估计（Δf = C）。
@@ -1518,6 +1542,64 @@ def api_feedback_summary():
     })
 
 
+@app.route("/api/feedback/synthesize", methods=["POST", "OPTIONS"])
+def api_feedback_synthesize():
+    """v4.10（P3·投喂台）：一键生成本院演示样本（合成，非真实病例）。
+    用于演示「本院样本越多 → 聚合权重越大 → 全局模型变化越明显」的因果链；
+    focus 可指定病种（如罕见病肺结核），症状从知识库核心症状中按 60%–100% 抽取。"""
+    if request.method == "OPTIONS":
+        return ("", 204)
+    acc = _sess(request)
+    if not acc:
+        return _deny()
+    if acc.get("center"):
+        return jsonify({"ok": False, "error": "联邦中心账号不产生本地病例样本"}), 400
+    hid = acc.get("hospital")
+    if hid not in _FL_HIDS:
+        return jsonify({"ok": False, "error": "无效院区"}), 400
+    data = request.get_json(silent=True) or {}
+    try:
+        n = int(data.get("n") or 10)
+    except (TypeError, ValueError):
+        n = 10
+    n = max(1, min(50, n))
+    focus = str(data.get("focus") or "").strip()
+    omit = str(data.get("omit") or "").strip()   # 不典型表现：系统性地少的那个核心症状
+    pool = {}
+    for _r in q("SELECT d.name AS dn, s.name AS sn FROM disease_symptoms ds "
+                "JOIN diseases d ON d.id = ds.disease_id "
+                "JOIN symptoms s ON s.id = ds.symptom_id"):
+        pool.setdefault(_r["dn"], []).append(_r["sn"])
+    if not pool:
+        return jsonify({"ok": False, "error": "知识库为空，无法生成样本"}), 500
+    import random as _rnd
+    _rng = _rnd.Random(20261016)
+    _names = [x for x in pool if pool[x]]
+    _added = 0
+    for _ in range(n):
+        dn = focus if (focus in pool and pool[focus]) else _rng.choice(_names)
+        syms = pool[dn]
+        if focus and dn == focus and omit and omit in syms and len(syms) >= 3:
+            # 定向「不典型表现」样本：核心症状齐全但系统性地缺 omit 那一个
+            # （教学意义：让模型学到「该病也可以不表现为某典型症状」，正是特例预警的场景）
+            picked = [s for s in syms if s != omit]
+        else:
+            k = max(2, min(len(syms), int(round(len(syms) * _rng.uniform(0.6, 1.0)))))
+            picked = _rng.sample(syms, k)
+        _FEEDBACK.setdefault(hid, []).append({
+            "symptoms": picked, "disease": dn, "action": "adopt",
+            "ts": int(_time.time()), "synthetic": True, "via": "feed-station"})
+        _added += 1
+    if len(_FEEDBACK[hid]) > 500:
+        _FEEDBACK[hid] = _FEEDBACK[hid][-500:]
+    _FB_SINCE[hid] = _FB_SINCE.get(hid, 0) + _added
+    _save_aux()
+    return jsonify({"ok": True, "hospital": hid, "added": _added,
+                    "stored": len(_FEEDBACK[hid]),
+                    "note": "演示用合成样本（非真实病例），已沉淀至本院样本池",
+                    "omit": (omit if (focus and omit) else None)})
+
+
 @app.route("/api/photo/stats")
 def api_photo_stats():
     acc = _sess(request)
@@ -1609,6 +1691,61 @@ def api_fl_train():
     if _FL_LAST is None:
         _FL_LAST = _fed_train(rounds, notify_acc=acc)
     return jsonify(_FL_LAST)
+
+
+@app.route("/api/fl/probe")
+def api_fl_probe():
+    """v4.10（P3·投喂台）：诊断探针——固定症状组合在当前模型下的排名快照。
+    投喂前后各调一次，前端对比展示「联邦确实影响了诊断判断」。
+    评分口径与 /api/diagnose 完全一致（症状 0.6 + 本院发病率 0.2 + 严重度 0.2）。"""
+    acc = _sess(request)
+    if not acc:
+        return _deny()
+    if acc.get("center"):
+        return jsonify({"ok": False, "error": "探针请使用医院账号（需本院发病率口径）"}), 400
+    hospital_id, err = _resolve_hospital(acc, request.args.get("hospital"))
+    if err:
+        return err
+    W = _MODEL.get("w") or {}
+    diseases = q("SELECT * FROM diseases")
+    sev_map = {"危急": 1.0, "严重": 0.7, "中度": 0.5, "轻度": 0.3}
+    dx_syms = {}
+    for _r in q("SELECT ds.disease_id AS did, s.name AS nm FROM disease_symptoms ds "
+                "JOIN symptoms s ON s.id = ds.symptom_id"):
+        dx_syms.setdefault(_r["did"], []).append(_r["nm"])
+    rate_lu = {}
+    for _r in q("SELECT disease_id, hospital_id, rate FROM prevalence_rates"):
+        rate_lu[(_r["disease_id"], _r["hospital_id"])] = float(_r["rate"])
+    probes = []
+    for _pb in _V410_PROBES:
+        d = next((x for x in diseases if x["name"] == _pb["target"]), None)
+        if not d:
+            continue
+        symptoms = _pb["symptoms"]
+        ranked = []
+        for dd in diseases:
+            ds2 = dx_syms.get(dd["id"], [])
+            matched = [s for s in symptoms if s in ds2]
+            if not matched:
+                continue
+            if W and dd["name"] in W:
+                wd = W[dd["name"]]
+                w_all = {s: float(wd.get(s, 1.0)) for s in ds2}
+                sm = min(1.0, sum(w_all.get(s, 1.0) for s in matched) / (sum(w_all.values()) or 1.0))
+            else:
+                sm = min(1.0, len(matched) / max(len(ds2), 1))
+            rate = rate_lu.get((dd["id"], hospital_id), 0.05)
+            sv = sev_map.get(dd["severity"], 0.5)
+            ranked.append({"name": dd["name"],
+                           "score": min(100, round((sm * 0.6 + min(rate * 5, 1) * 0.2 + sv * 0.2) * 100))})
+        ranked.sort(key=lambda x: x["score"], reverse=True)
+        t_rank = next((i + 1 for i, x in enumerate(ranked) if x["name"] == _pb["target"]), None)
+        t_score = next((x["score"] for x in ranked if x["name"] == _pb["target"]), None)
+        probes.append({"id": _pb["id"], "target": _pb["target"], "label": _pb["label"],
+                       "symptoms": symptoms, "top": ranked[:3],
+                       "target_rank": t_rank, "target_score": t_score})
+    return jsonify({"ok": True, "hospital": hospital_id,
+                    "version": _MODEL.get("version"), "probes": probes})
 
 
 @app.route("/api/fl/dp", methods=["GET", "POST", "OPTIONS"])
@@ -1705,6 +1842,8 @@ def api_fl_status():
         "feedback_total": _MODEL.get("feedback_total"),
         "feedback_cumulative": sum(len(_FEEDBACK.get(h, [])) for h in _FL_HIDS),
         "feedback_used_last_train": _MODEL.get("feedback_total"),
+        "weights": _fl_weights(),
+        "samples_by_hospital": _fl_sample_ns(),
         "hyper": _FL_SUMMARY,
         "dp": ({"clip": _DP_CLIP, "delta": _DP_DELTA, "sigmas": _DP_SIGMAS,
                 "last_generated_at": (_DP_LAST or {}).get("generated_at")}),

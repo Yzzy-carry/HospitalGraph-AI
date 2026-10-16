@@ -370,6 +370,7 @@ a{color:var(--blue2)}
       <button class="navi" data-v="diag" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 7h8M8 11h5"/><path d="M8 17l2-2 1.6 1.6L15.5 13"/></svg>AI 辅助诊断</button>
       <button class="navi" data-v="graph" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="6" r="2.4"/><circle cx="6" cy="17" r="2.4"/><circle cx="18" cy="17" r="2.4"/><path d="M10.8 8.1L7.2 14.9M13.2 8.1l3.6 6.8M8.4 17h7.2"/></svg>知识图谱</button>
       <button class="navi" data-v="fl" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="2.6"/><circle cx="5" cy="6" r="1.7"/><circle cx="19" cy="6" r="1.7"/><circle cx="5" cy="18" r="1.7"/><circle cx="19" cy="18" r="1.7"/><path d="M6.4 7.1l3.7 3.3M17.6 7.1l-3.7 3.3M6.4 16.9l3.7-3.3M17.6 16.9l-3.7-3.3"/></svg>联邦训练</button>
+      <button class="navi" data-v="feed" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>联邦贡献</button>
       <button class="navi" data-v="chat" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a8 8 0 0 1-8 8H4l2-3a8 8 0 1 1 15-5z"/><path d="M9 11h.01M12.5 11h.01M16 11h.01"/></svg>AI 医疗问答</button>
       <button class="navi" data-v="photo" type="button"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="13" rx="2.2"/><circle cx="12" cy="13.4" r="3.6"/><path d="M8.6 7l1.3-2.2h4.2L15.4 7"/></svg>拍照分析</button>
     </nav>
@@ -1651,6 +1652,7 @@ function openView(name){
   else if(name === 'diag'){ ACTIVE = 'diag'; setNav('diag'); mxOpenDiag(); }
   else if(name === 'graph'){ ACTIVE = 'graph'; setNav('graph'); mxOpenGraph(); }
   else if(name === 'fl'){ ACTIVE = 'fl'; setNav('fl'); mxOpenFL(); }
+  else if(name === 'feed'){ ACTIVE = 'feed'; setNav('feed'); mxOpenFeed(); }
   else if(name === 'chat'){ ACTIVE = 'chat'; setNav('chat'); mxOpenChat(); }
   else if(name === 'photo'){ ACTIVE = 'photo'; setNav('photo'); mxOpenPhoto(); }
   else { ok = false; }
@@ -1713,6 +1715,135 @@ function renderHome(){
   }).catch(function(){});
 }
 
+/* ---------- v4.10（P3）：联邦贡献 · 投喂台 ---------- */
+function mxOpenFeed(){
+  if(HGX.isCenter){ enterView('联邦贡献 · 投喂台', ''); viewHost.innerHTML = '<p class="mx-note">投喂台面向医院账号：联邦中心不产生本地病例样本（中心只做参数聚合）。</p>'; return; }
+  enterView('联邦贡献 · 投喂台', '本院样本 → 本地训练 → 参数上报联邦中心 → 全局模型（数据不出院）');
+  Promise.all([
+    hgxGet('/api/feedback/summary'),
+    hgxGet('/api/fl/status').catch(function(){ return null; })
+  ]).then(function(out){ renderFeed(out[0], out[1], null); })
+    .catch(function(){ viewHost.innerHTML = '<p class="mx-err">接口不可用：请确认后端服务已启动。</p>'; });
+
+  function fdBar(pct, label){
+    return '<div style="margin:8px 0 2px"><div style="display:flex;justify-content:space-between;font-size:.76rem"><span style="color:var(--txm)">' + label + '</span><b>' + pct + '%</b></div>' +
+      '<div class="mx-bar" style="display:block;margin:4px 0 0"><i style="width:' + Math.max(2, Math.min(100, pct)) + '%"></i></div></div>';
+  }
+
+  function renderFeed(sm, st, diffHtml){
+    var hid = HGX.hospital || 'A';
+    var h = [];
+    h.push('<p class="mx-note"><b>联邦的因果链</b>：本院病例沉淀为本地样本 → 本地训练出参数 → 只把<b>参数</b>上报联邦中心加权聚合 → 新全局模型下发回来，直接影响「AI 辅助诊断」的判断。<b>样本全程不出院。</b></p>');
+    var cum = (sm && sm.cumulative) || {}, since = (sm && sm.since_last_train) || {};
+    var mine = cum[hid] || 0, mineSince = since[hid] || 0;
+    h.push('<div class="mx-card"><div class="mx-ch"><b>① 本院样本池</b><span class="mx-cdept">累计 ' + mine + ' 条 · 上次训练后又新增 ' + mineSince + ' 条</span></div>');
+    h.push('<p class="mx-note">医生在「AI 辅助诊断」里采纳 / 修正诊断，即自动沉淀 1 条本地样本；演示时也可一键补充合成样本：</p>');
+    h.push('<div class="mx-acts">' +
+      '<button class="btn ghost dark sm" id="fdAddMix" type="button">补充演示样本 +10（随机病种）</button>' +
+      '<button class="btn ghost dark sm" id="fdAddRare" type="button">补充罕见病不典型病例 +10（无咯血的肺结核）</button></div>');
+    h.push('<p class="mx-mut" style="font-size:.72rem;margin-top:8px">合成样本仅用于演示（非真实病例）。「不典型病例」= 核心症状齐全但缺某个典型症状（如无咯血的肺结核）——喂给模型后，同样的症状组合下罕见病得分会上升；罕见病样本进入本地训练时另按 3 倍代价加权。</p></div>');
+    var w = (st && st.weights) || {}, ns = (st && st.samples_by_hospital) || {};
+    var myW = Math.round((w[hid] || 0) * 1000) / 10, myN = ns[hid] || 0, allN = 0;
+    for(var k2 in ns){ allN += ns[k2]; }
+    h.push('<div class="mx-card"><div class="mx-ch"><b>② 本院聚合权重</b><span class="mx-cdept">FedAvg 按样本量加权 · 数据越多影响越大</span></div>');
+    h.push(fdBar(myW, '本院样本 ' + myN + ' / 六院合计 ' + allN));
+    h.push('<p class="mx-mut" style="font-size:.72rem">聚合公式 w = Σ (n院 / N) · w院 —— 本院每多沉淀一条样本，全局模型里本院的「话语权」就大一分。</p></div>');
+    h.push('<div class="mx-card"><div class="mx-ch"><b>③ 一键上报参数</b><span class="mx-cdept">真实触发一轮 FedAvg 聚合（约数秒）</span></div>');
+    h.push('<div class="mx-acts"><button class="btn primary sm" id="fdReport" type="button">一键上报参数给联邦中心</button></div>');
+    h.push('<div id="fdSteps" style="display:none;margin-top:10px;font-size:.8rem;line-height:2.1"></div></div>');
+    h.push('<div class="mx-card"><div class="mx-ch"><b>④ 上报影响（三级证据）</b><span class="mx-cdept">模型级 · 权重级 · 病例级</span></div>');
+    h.push('<div id="fdDiff">' + (diffHtml || '<p class="mx-note">尚未上报。点击「一键上报参数」，系统自动对比上报前后的：全局模型版本与精度、本院聚合权重、固定病例探针的诊断排名。</p>') + '</div></div>');
+    viewHost.innerHTML = h.join('');
+
+    function addSyn(n, focus, omit){
+      hgxPost('/api/feedback/synthesize', { n: n, focus: focus || '', omit: omit || '' }).then(function(r){
+        if(r.ok && r.data && r.data.ok){
+          toast('已补充 ' + r.data.added + ' 条合成样本（本院累计 ' + r.data.stored + ' 条）');
+          mxOpenFeed();
+        } else { toast((r.data && r.data.error) || '补充失败'); }
+      }).catch(function(){ toast('补充失败：请确认登录状态'); });
+    }
+    QS('#fdAddMix').addEventListener('click', function(){ addSyn(10, ''); });
+    QS('#fdAddRare').addEventListener('click', function(){ addSyn(10, '肺结核', '咯血'); });
+
+    QS('#fdReport').addEventListener('click', function(){
+      var btn = QS('#fdReport'); btn.disabled = true; btn.textContent = '上报中…';
+      var steps = ['① 本地训练（本院样本不出院）', '② 参数包上行（只传权重，不传病历）', '③ 联邦中心加权聚合', '④ 新全局模型下发六院', '⑤ 生成影响证据'];
+      var box = QS('#fdSteps'); box.style.display = 'block';
+      var si = 0;
+      function paint(){
+        var t2 = '';
+        for(var i2 = 0; i2 < steps.length; i2++){
+          var c2 = i2 < si ? 'var(--ok)' : (i2 === si ? 'var(--blue)' : 'var(--txm)');
+          var mk = i2 < si ? ' ✓' : (i2 === si ? ' …' : '');
+          t2 += '<div style="color:' + c2 + '">' + steps[i2] + mk + '</div>';
+        }
+        box.innerHTML = t2;
+      }
+      paint();
+      var timer = setInterval(function(){ si = Math.min(si + 1, steps.length - 1); paint(); }, 1000);
+      var before = null;
+      Promise.all([
+        hgxGet('/api/fl/probe').catch(function(){ return null; }),
+        hgxGet('/api/fl/status').catch(function(){ return null; })
+      ]).then(function(b){
+        before = { probe: b[0], status: b[1] };
+        return hgxPost('/api/fl/train?rounds=15', {});
+      }).then(function(r){
+        if(!(r.ok && r.data && r.data.ok)){
+          clearInterval(timer); btn.disabled = false; btn.textContent = '一键上报参数给联邦中心';
+          toast((r.data && r.data.error) || '上报失败'); return null;
+        }
+        return Promise.all([
+          hgxGet('/api/fl/probe').catch(function(){ return null; }),
+          hgxGet('/api/fl/status').catch(function(){ return null; })
+        ]).then(function(a){
+          clearInterval(timer); si = steps.length - 1; paint();
+          var diffHtml2 = fdDiffHtml(before, { probe: a[0], status: a[1] });
+          setTimeout(function(){
+            Promise.all([
+              hgxGet('/api/feedback/summary'),
+              hgxGet('/api/fl/status').catch(function(){ return null; })
+            ]).then(function(out2){ renderFeed(out2[0], out2[1], diffHtml2); });
+            toast('上报完成：全局模型已更新');
+          }, 900);
+        });
+      }).catch(function(e){
+        clearInterval(timer); btn.disabled = false; btn.textContent = '一键上报参数给联邦中心';
+        toast('上报失败：' + (e && e.message || e));
+      });
+    });
+  }
+
+  function fdDiffHtml(b, a){
+    var hid = HGX.hospital || 'A';
+    var bs = (b && b.status) || {}, as = (a && a.status) || {};
+    var rows = [];
+    rows.push('<p class="mx-note" style="margin-top:0">上报流程完成：本地训练 <b style="color:var(--ok)">✓</b> → 参数上行 <b style="color:var(--ok)">✓</b> → 中心聚合 <b style="color:var(--ok)">✓</b> → 模型下发 <b style="color:var(--ok)">✓</b></p>');
+    rows.push('<table class="ph-table"><tr><th>证据层级</th><th>上报前</th><th>上报后</th></tr>');
+    rows.push('<tr><td>全局模型</td><td>v' + (bs.version || '—') + ' · 训练集 ' + (bs.acc != null ? bs.acc + '%' : '—') + (bs.holdout_acc != null ? ' · 留出集 ' + bs.holdout_acc + '%' : '') + '</td>' +
+      '<td><b>v' + (as.version || '—') + '</b> · 训练集 <b>' + (as.acc != null ? as.acc + '%' : '—') + '</b>' + (as.holdout_acc != null ? ' · 留出集 <b>' + as.holdout_acc + '%</b>' : '') + '</td></tr>');
+    var bw = Math.round(((bs.weights || {})[hid] || 0) * 1000) / 10;
+    var aw = Math.round(((as.weights || {})[hid] || 0) * 1000) / 10;
+    var dw = Math.round((aw - bw) * 10) / 10;
+    rows.push('<tr><td>本院聚合权重</td><td>' + bw + '%</td><td><b>' + aw + '%</b>（' + (dw >= 0 ? '+' : '') + dw + 'pp）</td></tr>');
+    var bp = ((b && b.probe) && b.probe.probes) || [], ap = ((a && a.probe) && a.probe.probes) || [];
+    for(var i = 0; i < ap.length; i++){
+      var t3 = ap[i], b3 = null;
+      for(var j = 0; j < bp.length; j++){ if(bp[j].target === t3.target){ b3 = bp[j]; break; } }
+      if(!b3 || b3.target_rank == null || t3.target_rank == null){ continue; }
+      var dr = t3.target_rank - b3.target_rank;
+      var ds = Math.round((t3.target_score - b3.target_score) * 10) / 10;
+      rows.push('<tr><td>病例探针 · ' + hgxEsc(t3.target) + '<br><span style="font-size:.68rem;color:var(--txm)">' + hgxEsc(t3.label) + '</span></td>' +
+        '<td>第 ' + b3.target_rank + ' 名 · ' + b3.target_score + ' 分</td>' +
+        '<td>第 <b>' + t3.target_rank + '</b> 名 · <b>' + t3.target_score + '</b> 分（排名' + (dr < 0 ? ' <b style="color:var(--ok)">↑' + (-dr) + '</b>' : (dr > 0 ? ' ↓' + dr : ' 持平')) + ' · 得分' + (ds > 0 ? ' +' : '') + ds + '）</td></tr>');
+    }
+    rows.push('</table>');
+    rows.push('<p class="mx-mut" style="font-size:.72rem;margin-top:8px">探针 = 固定症状组合在「AI 辅助诊断」同一评分口径下的排名快照；差异来自本轮新吸收的本院样本（罕见病按 3 倍加权）。</p>');
+    return rows.join('');
+  }
+}
+
 /* ---------- 登录 / 注册 ---------- */
 function showAuth(){
   try{ localStorage.removeItem('hg_token'); }catch(e){}
@@ -1740,7 +1871,7 @@ function boot(user){
   var h = (location.hash || '').replace('#', ''), v = q.get('view') || q.get('module') || '';
   if(!v){ if(q.get('pick')){ v = 'diag'; } else if(q.get('photosample')){ v = 'photo'; } }
   var first = h || v;
-  var allow = ['home', 'record', 'diag', 'graph', 'fl', 'chat', 'photo'];
+  var allow = ['home', 'record', 'diag', 'graph', 'fl', 'feed', 'chat', 'photo'];
   openView(allow.indexOf(first) >= 0 ? first : 'home');
 }
 QSA('.auth-tab').forEach(function(t){
