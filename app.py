@@ -1918,6 +1918,7 @@ def api_fl_status():
         "feedback_used_last_train": _MODEL.get("feedback_total"),
         "weights": _fl_weights(),
         "samples_by_hospital": _fl_sample_ns(),
+        "last_weights_used": ((_FL_LAST or {}).get("weights_used") or {}),
         "hyper": _FL_SUMMARY,
         "dp": ({"clip": _DP_CLIP, "delta": _DP_DELTA, "sigmas": _DP_SIGMAS,
                 "last_generated_at": (_DP_LAST or {}).get("generated_at")}),

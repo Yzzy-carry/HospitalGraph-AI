@@ -1830,8 +1830,8 @@ function mxOpenFeed(){
     rows.push('<table class="ph-table"><tr><th>证据层级</th><th>上报前</th><th>上报后</th></tr>');
     rows.push('<tr><td>全局模型</td><td>v' + (bs.version || '—') + ' · 训练集 ' + (bs.acc != null ? bs.acc + '%' : '—') + (bs.holdout_acc != null ? ' · 留出集 ' + bs.holdout_acc + '%' : '') + '</td>' +
       '<td><b>v' + (as.version || '—') + '</b> · 训练集 <b>' + (as.acc != null ? as.acc + '%' : '—') + '</b>' + (as.holdout_acc != null ? ' · 留出集 <b>' + as.holdout_acc + '%</b>' : '') + '</td></tr>');
-    var bw = Math.round(((bs.weights || {})[hid] || 0) * 1000) / 10;
-    var aw = Math.round(((as.weights || {})[hid] || 0) * 1000) / 10;
+    var bw = Math.round((((bs.last_weights_used || {})[hid] || (bs.weights || {})[hid] || 0)) * 1000) / 10;
+    var aw = Math.round((((as.last_weights_used || {})[hid] || (as.weights || {})[hid] || 0)) * 1000) / 10;
     var dw = Math.round((aw - bw) * 10) / 10;
     rows.push('<tr><td>本院聚合权重</td><td>' + bw + '%</td><td><b>' + aw + '%</b>（' + (dw >= 0 ? '+' : '') + dw + 'pp）</td></tr>');
     var bp = ((b && b.probe) && b.probe.probes) || [], ap = ((a && a.probe) && a.probe.probes) || [];
