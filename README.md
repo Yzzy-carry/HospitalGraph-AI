@@ -49,7 +49,7 @@
 
 ```powershell
 # 1) 获取代码
-git clone <仓库地址> HospitalGraph-AI
+git clone https://github.com/Yzzy-carry/HospitalGraph-AI.git HospitalGraph-AI
 cd HospitalGraph-AI
 
 # 2) 安装依赖
